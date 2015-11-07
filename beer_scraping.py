@@ -23,8 +23,10 @@ def get_state_reviews(url, start_index):
         if i >= start_index:
             print('\n working on brewery %i of %i in state, from link - '+ url)%(i+1, num_breweries)
             beer_links = get_brewery_beer_list(brewery)
+            if not beer_links: continue
             num_beers = len(beer_links)
             for b, beer in enumerate(beer_links):
+                print beer
                 print('\n working on beer %i of %i in brewery - ' + beer + '\n')%(b+1, num_beers)
                 get_reviews(beer)
 
@@ -40,14 +42,24 @@ def get_state_breweries(url):
 
 def get_brewery_beer_list(link):
     ua = UserAgent()
+    beer_list = set(beer_ratings.distinct('beer'))
     page = requests.get(link, headers= {"User-agent": ua.random})
     soup = BeautifulSoup(page.content, 'lxml')
-    links = soup.select('tr td a')
-    links = filter(lambda x: x['href'].startswith('/beer/'), links)
-    links = filter(lambda x: '/rate/' not in x['href'], links)
-    links = filter(lambda x: '/top-50/' not in x['href'], links)
-    links = map(lambda x: 'http://www.ratebeer.com' + x['href'], links)
-    return links
+    try: beer_pages = int(soup.select('a.ballno')[-1].text)
+    except IndexError:beer_pages = 1
+    link_coll=[]
+    for rpage in xrange(beer_pages):
+        time.sleep(0.5)
+        current_page = requests.get(link+'0/'+str(rpage+1)+'/')
+        soup = BeautifulSoup(current_page.content, 'lxml')
+        links = soup.select('tr td a')
+        links = filter(lambda x: x['href'].startswith('/beer/'), links)
+        links = filter(lambda x: '/rate/' not in x['href'], links)
+        links = filter(lambda x: '/top-50/' not in x['href'], links)
+        links = filter(lambda x: x.text not in beer_list, links)
+        links = map(lambda x: 'http://www.ratebeer.com' + x['href'], links)
+        link_coll.extend(links)
+    return link_coll
 
 
 def get_recent_beers(base_link):
@@ -107,7 +119,8 @@ def get_reviews(beer_link):
         rating_text = soup.findAll(attrs = {"style":"font-size: 48px; font-weight: bold; color: #fff; padding: 7px 10px;"})[0]['title']
         ratebeer_rating = re.match(ur'(^[0-9.]+)', rating_text).group(0)
     except (IndexError, AttributeError): ratebeer_rating = 'NA'
-    region = soup.findAll(attrs = {"itemprop":"title"})[1].text
+    try :region = soup.findAll(attrs = {"itemprop":"title"})[1].text
+    except IndexError: region = 'NA'
     try: review_pages = int(soup.select('a.ballno')[-1].text)
     except IndexError:review_pages = 1
     try: brewery = soup.select('big b a')[0].text
@@ -118,7 +131,7 @@ def get_reviews(beer_link):
                 abv, cals, 'NA', "NA", "NA", "NA", "NA", "NA", "NA", "NA", "NA")
             return
     for rpage in xrange(review_pages):
-        time.sleep(1)
+        time.sleep(0.5)
         page = requests.get(beer_link+'1/'+str(rpage+1)+'/')
         soup = BeautifulSoup(page.content, 'lxml')
         metrics = soup.select('table tr td div tr strong')
@@ -174,7 +187,7 @@ if __name__ == '__main__':
     db = client['ratebeer']
     beer_ratings = db.ratings
     #get_top50_beers() 
-#    get_recent_reviews()
+ #   get_recent_reviews()
 #    jobs = []
 #    job1 =threading.Thread(target=get_state_reviews, args=get_state_reviews('http://www.ratebeer.com/breweries/florida/9/213/', 0))
 #    jobs.append(job1)
@@ -182,13 +195,13 @@ if __name__ == '__main__':
 #    job2 = threading.Thread(target = get_recent_reviews, args = () )
 #    jobs.append(job2)
 #    job2.start()
-    get_state_reviews('http://www.ratebeer.com/breweries/florida/9/213/', 48)
+    get_state_reviews('http://www.ratebeer.com/breweries/oregon/37/213/', 0)
 
 '''
 reminder to backup db - from cmf line
 mongodump  --db ratebeer --collection ratings
 
-    WA link http://www.ratebeer.com/breweries/washington/47/213/      done
+    WA link http://www.ratebeer.com/breweries/washington/47/213/      done..
     OR link http://www.ratebeer.com/breweries/oregon/37/213/          done
     GA link http://www.ratebeer.com/breweries/georgia/10/213/         done
     CO link http://www.ratebeer.com/breweries/colorado/6/213/         dome
@@ -196,6 +209,9 @@ mongodump  --db ratebeer --collection ratings
     NV http://www.ratebeer.com/breweries/nevada/28/213/               done
     MA link http://www.ratebeer.com/breweries/massachusetts/21/213/   done
     AL likn http://www.ratebeer.com/breweries/alabama/1/213/          done
-    FL    http://www.ratebeer.com/breweries/florida/9/213/
+    FL    http://www.ratebeer.com/breweries/florida/9/213/            done
+
+    other breweries
+    http://www.ratebeer.com/brewers/caledonian-heineken-uk/168/
 
 '''
