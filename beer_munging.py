@@ -35,15 +35,28 @@ def create_sql_tables(df):
     df.to_sql("all_data", engine)
 
 def get_item_user_pairs(beer_ratings):
-    return pd.DataFrame(list(beer_ratings.find({},{'beer':1,'taste':1,'user':1}))).sort('user',inplace=True)
+    taste_df = pd.DataFrame(list(beer_ratings.find({},{'beer':1,'taste':1,'user':1}))).sort_values(by='user')
+    taste_df = taste_df[taste_df.taste != 'NA']
+    taste_df.taste = taste_df.taste.astype(float)*5
+    agged = taste_df.groupby('user').aggregate(len)
+    drop_list = list(agged[ agged[ '_id'] < 3].index)
+    taste_df = taste_df[-taste_df.user.isin(drop_list)]
+    return taste_df
 
+def get_beer_side_data(beer_ratings):
+    beer_side_data = pd.DataFrame(list(beer_ratings.find({},{"beer":1, "abv":1, "calories":1, 'brewery': 1, 'ratebeer_rating': 1, 'style': 1})))
+    beer_side_data.pop('_id')
+    beer_side_data.drop_duplicates(inplace=True)
+    abv_mode = beer_side_data[beer_side_data['abv'] != 'NA']['abv'].mode().values[0]
+    beer_side_data['abv'] =  beer_side_data['abv'].replace('NA', abv_mode)
+    beer_side_data['abv'] =  beer_side_data['abv'].apply(lambda x: x.replace('%', '')).astype(float)
+    return beer_side_data
 
 '''
 CREATE TABLE beers AS SELECT DISTINCT beer, brewery, beer_decr,ratebeer_rating, region, style, abv, calories FROM all_data;
+beer_side_data = pd.DataFrame(list(beer_ratings.find({},{"beer":1, 'abv':1, "calories":1})))
+beer_side_data.pop('_id')
+beer_ratings.drop_duplicates(inplace=True)
 
 '''
 
-'''
-review_data = pd.DataFrame(list(beer_ratings.find({},{'beer':1,'taste':1,'user':1})))
-
-''''
