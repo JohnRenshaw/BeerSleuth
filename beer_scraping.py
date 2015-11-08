@@ -195,7 +195,7 @@ if __name__ == '__main__':
 #    job2 = threading.Thread(target = get_recent_reviews, args = () )
 #    jobs.append(job2)
 #    job2.start()
-    get_state_reviews('http://www.ratebeer.com/breweries/florida/9/213/', 14)
+    get_state_reviews('http://www.ratebeer.com/breweries/massachusetts/21/213/', 0)
 
 '''
 reminder to backup db - from cmf line
@@ -204,14 +204,13 @@ mongodump  --db ratebeer --collection ratings
     WA link http://www.ratebeer.com/breweries/washington/47/213/      done..
     OR link http://www.ratebeer.com/breweries/oregon/37/213/          done..
     GA link http://www.ratebeer.com/breweries/georgia/10/213/         done..
-    CO link http://www.ratebeer.com/breweries/colorado/6/213/         dome
+    CO link http://www.ratebeer.com/breweries/colorado/6/213/         dome..
     CA link http://www.ratebeer.com/breweries/california/5/213/       done..
     NV http://www.ratebeer.com/breweries/nevada/28/213/               done..
-    MA link http://www.ratebeer.com/breweries/massachusetts/21/213/   done
+    MA link http://www.ratebeer.com/breweries/massachusetts/21/213/   done..
     AL likn http://www.ratebeer.com/breweries/alabama/1/213/          done..
-    FL    http://www.ratebeer.com/breweries/florida/9/213/            done
-
-    other breweries
+    FL    http://www.ratebeer.com/breweries/florida/9/213/            done..
+    other brieweries
     http://www.ratebeer.com/brewers/caledonian-heineken-uk/168/
 
 '''

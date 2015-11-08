@@ -8,7 +8,7 @@ client = MongoClient()
 db = client['ratebeer']
 beer_ratings = db.ratings
 
-def clean_data(beer_ratings):
+def clean_data_write_to_sql(beer_ratings):
     ratings_df = pd.DataFrame(list(beer_ratings.find()))
     ratings_df.index = ratings_df['_id']
     ratings_df.pop('_id')
@@ -28,11 +28,17 @@ def clean_data(beer_ratings):
     beer_df = ratings_df[['beer','style','brewery','beer_decr','abv','region','calories', 'ratebeer_rating']].drop_duplicates()
     beer_df.index = beer_df.beer
     beer_df.pop('beer')
+    abv_mode = beer_df[beer_df['abv'] != 'NA']['abv'].mode().values[0]
+    beer_df['abv'] =  beer_df['abv'].replace('NA', abv_mode)
+    beer_df['abv'] =  beer_df['abv'].apply(lambda x: x.replace('%', '')).astype(float)
+    create_sql_tables(ratings_df, ratings)
+    create_sql_tables(beer_df, beer_df)
 
 
-def create_sql_tables(df):
+
+def create_sql_tables(df, table_name):
     engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
-    df.to_sql("all_data", engine)
+    df.to_sql(table_name, engine)
 
 def get_item_user_pairs(beer_ratings):
     taste_df = pd.DataFrame(list(beer_ratings.find({},{'beer':1,'taste':1,'user':1}))).sort_values(by='user')
