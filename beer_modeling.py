@@ -1,7 +1,7 @@
 import graphlab as gl
 import pandas as pd
-from beer_munging import get_item_user_pairs, get_beer_side_data
-from pymongo import MongoClient
+from sqlalchemy import create_engine
+import psycopg2
 
 def param_sweep(sframe ):
     '''
@@ -18,9 +18,9 @@ def param_sweep(sframe ):
  #                   'item_data': movie_side,
                     'user_id':'user',
                     'item_id':'beer',
-                    'num_factors': [8],
-                    'regularization': [1e-3, 1e-4, 1e-5, 1e-6],
-                    'linear_regularization':1e-10,
+                    'num_factors': [8, 12],
+                    'regularization': [1e-3, 1e-4],
+                    'linear_regularization':[1e-8, 1e-6, 1e-4],
                     'side_data_factorization': False,
                     'nmf' : False, 
                     'max_iterations': 60,
@@ -29,19 +29,24 @@ def param_sweep(sframe ):
                     'verbose':True
                     }
 
-    gs = gl.grid_search.create((train, valid), gl.recommender.factorization_recommender.create, params)
+    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params, max_models=10)
     return gs
 
+def load_data_from_sql():
+    engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
+    taste_df = pd.read_sql_table('ratings', engine)
+    beer_df = pd.read_sql_table('beers', engine)
+    return taste_df, beer_df
+
+
 if __name__ == '__main__':
-    client = MongoClient()
-    db = client['ratebeer']
-    beer_ratings = db.ratings
-    taste_df = get_item_user_pairs(beer_ratings)
-    beer_sides_sf = gl.SFrame(get_beer_side_data(beer_ratings))
+    taste_df, beer_df = load_data_from_sql()
+    beer_df.pop('ratebeer_rating')
+    beer_sf = gl.SFrame(beer_df)
     taste_sf = gl.SFrame(taste_df)
-  #  train, valid = gl.recommender.util.random_split_by_user(taste_sf, user_id='user', item_id='beer', max_num_users=4000, item_test_proportion=.2)
-  #  m = gl.recommender.factorization_recommender.create(train, user_id='user', item_id='beer', \
-   #                      item_data=beer_sides_sf,\
-  #                       num_factors=8, target='taste', max_iterations=50)
+#    train, valid = gl.recommender.util.random_split_by_user(taste_sf, user_id='user', item_id='beer', max_num_users=4000, item_test_proportion=.2)
+#    m = gl.recommender.factorization_recommender.create(train, user_id='user', item_id='beer', \
+#                         item_data=beer_sf, regularization=1e-4, linear_regularization=1e-6, \
+#                         num_factors=8, target='taste', max_iterations=75)
  #   preds = m.predict(valid)
     gs = param_sweep(taste_sf)
