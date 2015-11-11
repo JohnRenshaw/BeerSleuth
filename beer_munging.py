@@ -1,8 +1,16 @@
 from pymongo import MongoClient
 from sqlalchemy import create_engine
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk.stem.porter import PorterStemmer
+from nltk.stem.snowball import SnowballStemmer
+from nltk.stem.wordnet import WordNetLemmatizer
+
+from sklearn.feature_extraction.text import TfidfVectorizer
 import pandas as pd
 import datetime
 import psycopg2
+import cPickle as pickle
 
 client = MongoClient()
 db = client['ratebeer']
@@ -17,11 +25,14 @@ def create_sql_tables(df, table_name):
 def get_item_user_pairs(beer_ratings):
     taste_df = pd.DataFrame(list(beer_ratings.find({},{'beer':1,'taste':1,'user':1}))).sort_values(by='user')
     taste_df = taste_df[taste_df.taste != 'NA']
-    taste_df.taste = taste_df.taste.astype(float)*5
-    agged = taste_df.groupby('user').aggregate(len)
-    drop_list = list(agged[ agged[ '_id'] < 4].index)
-    taste_df = taste_df[-taste_df.user.isin(drop_list)]
+    taste_df.taste = taste_df.taste.astype(float)*10
     create_sql_tables(taste_df, 'ratings')
+
+def get_CA_item_user_pairs(beer_ratings):
+    taste_df = pd.DataFrame(list(beer_ratings.find({'region':'United States: California'},{'beer':1,'taste':1,'user':1}))).sort_values(by='user')
+    taste_df = taste_df[taste_df.taste != 'NA']
+    taste_df.taste = taste_df.taste.astype(float)*10
+    create_sql_tables(taste_df, 'caratings')
  
 
 def get_beer_side_data(beer_ratings):
@@ -38,3 +49,33 @@ def get_beer_side_data(beer_ratings):
     beer_side_data['ratebeer_rating'] =  pd.to_numeric(beer_side_data['ratebeer_rating'], errors='coerce')
     create_sql_tables(beer_side_data, 'beers')
 
+
+def nlp(beer_ratings):
+  #  text_revs = pd.DataFrame(list(beer_ratings.find({},{"beer":1, 'review': 1})))
+  #  text_revs.pop('_id')
+  #  agged_text = text_revs.groupby('beer').aggregate(sum)
+    with open('text.pkl','rb') as f:
+        agged_text = pickle.load(f)
+    tokenized_text_list = process_text(agged_text)
+    return tokenized_text_list
+
+def process_text(df):
+    wn_tokens = []
+    stop_word_set = set(stopwords.words('english'))
+    wordnet = WordNetLemmatizer()
+#    snowball = SnowballStemmer('english')
+    for row in xrange(len(df)):
+        print(row)
+        string =df.ix[row].values[0].lower()
+        temp_list =word_tokenize(string)
+        temp_list = filter( lambda word: word not in stop_word_set, temp_list)
+        final_list = [wordnet.lemmatize(word) for word in temp_list]
+#        final_list = [snowball.stem(word) for word in temp_list]
+        wn_tokens.append(" ".join(final_list))
+    return wn_tokens
+
+def calc_term_freq():
+    with open('tokens.pkl','rb') as f:
+        tokens = pickle.load(f)
+    vectorizer = TfidfVectorizer(max_features=100, ngram_range=(1, 2), analyzer = 'word', stop_words=['10', '12'], use_idf=False)
+    return vectorizer.fit_transform(tokens), vectorizer
