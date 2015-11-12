@@ -3,10 +3,10 @@ import graphlab as gl
 import pandas as pd
 import os
 import numpy as np
-from sqlalchemy import create_engine
-import psycopg2
+#from sqlalchemy import create_engine
+#import psycopg2
 
-def param_sweep(sframe, beer_sf ):
+def param_sweep(taste_sf, beer_sf ):
     '''
     to use ...
 
@@ -26,14 +26,14 @@ def param_sweep(sframe, beer_sf ):
                     'regularization': [1e-2, 1e-4, 1e-6, 1e-8, 1e-10],
                     'linear_regularization':[1e-2,1e-4, 1e-6, 1e-8, 1e-10],
                     'side_data_factorization': [True, False],
-                    'nmf' : [True], 
+                    'nmf' : [True, False], 
                     'max_iterations': 50,
                     'sgd_step_size': 0,
                     'solver':'auto',
                     'verbose':True
                     }
 
-    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params, max_models=20, perform_trial_run=False )
+    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params, max_models=15, perform_trial_run=False )
     return gs
 
 
@@ -46,19 +46,6 @@ def load_data_from_sql():
                 (SELECT ratings.user as reviewer,count(*) FROM ratings GROUP BY ratings.user) as counts 
                 WHERE counts.count < 4)
          ''', engine)
-
-##below is the query to limit users AND beers for more than 3 
-'''
-        SELECT * FROM caratings
-        WHERE caratings.user NOT IN
-            (SELECT counts.reviewer FROM 
-                (SELECT caratings.user as reviewer,count(*) FROM caratings GROUP BY caratings.user) as counts 
-                WHERE counts.count < 4)
-        AND caratings.beer NOT IN
-                    (SELECT bcounts.beer FROM 
-                (SELECT caratings.beer as beer,count(*) FROM caratings GROUP BY caratings.beer) as bcounts 
-                WHERE bcounts.count < 4)
-'''
 
     beer_df = pd.read_sql_table('beers', engine)
     beer_df.index=beer_df.beer
@@ -107,7 +94,7 @@ def start_cluster():
                                             num_hosts = 5)
     return my_cluster
 
-def fit_model(taste_sf, beer_df):
+def fit_model(taste_sf, beer_sf):
     train, valid = gl.recommender.util.random_split_by_user(taste_sf, user_id='user', item_id='beer', max_num_users=4000, item_test_proportion=.2)
     m = gl.recommender.factorization_recommender.create(train,
         user_id='user',
@@ -115,31 +102,24 @@ def fit_model(taste_sf, beer_df):
         item_data=beer_sf, 
         regularization=1e-3,
         linear_regularization=1e-5,
-        nmf=False, 
+        nmf=True, 
         num_factors=12, 
         target='taste',
         max_iterations=50,
-        sgd_step_size=0.005,
+        sgd_step_size=0,
         side_data_factorization=False)
     return m
 
 
 def load_sframes_from_s3():
-    beer_sf = gl.SFrame(data='s3-us-west-2.amazonaws.com/beerdata/beer_df.csv')
-    taste_sf = gl.SFrame(data='s3-us-west-2.amazonaws.com/beerdata/taste_df_corpus.csv')
-    return beer_df, taste_sf
+    beer_sf = gl.SFrame('s3://beerdata/beer_df_wout_brewery.csv')
+    taste_sf = gl.SFrame('s3://beerdata/taste_df.csv')
+    beer_sf = beer_sf.dropna()
+    return beer_sf, taste_sf
 
 def load_sframes_from_csv():
     beer_sf = gl.SFrame(data='beer_df.csv')
     beer_sf = beer_sf.dropna()
     taste_sf = gl.SFrame(data='taste_df.csv')
     return beer_sf, taste_sf
-
-if __name__ == '__main__':
-
-	
-
-#    preds = m.predict(valid)
-#    gs = param_sweep(taste_sf, beer_sf)
-
 
