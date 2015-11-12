@@ -1,3 +1,5 @@
+
+
 def workflow():
     taste_df, beer_sf = get_data()
     gs = param_sweep(taste_sf, beer_sf)
@@ -8,7 +10,7 @@ def get_data():
     """
     loads data from s3 instance
     """
-    import graphlab as gl 
+    
     beer_sf = gl.SFrame.read_csv('beer_df.csv')
     beer_sf = beer_sf.dropna()
     taste_sf = gl.SFrame.read_csv('taste_df_corpus.csv')
@@ -65,15 +67,20 @@ def param_sweep(sframe, beer_sf ):
 
 def start_cluster():
     import graphlab as gl
-    my_config = gl.deploy.Ec2Config(instance_type = 'c3.2xlarge', region = 'us-east-1')
+    my_config = gl.deploy.Ec2Config(instance_type = 'c3.2xlarge', region = 'us-west-2')
     my_cluster = gl.deploy.ec2_cluster.create('Compute Cluster',
                                             s3_path='s3://beerdata',
                                             ec2_config = my_config,
                                             num_hosts = 5)
     return my_cluster
 
-'''
-my_cluster = gl.deploy.ec2_cluster.load('s3://beerdata')
-gl.aws.set_credentials(os.environ['AWS_ACCESS_KEY'],os.environ['AWS_SECRET_KEY'])
 
+def login():
+    import os
+    import graphlab as gl
+   
+    gl.aws.set_credentials(os.environ['AWS_ACCESS_KEY'],os.environ['AWS_SECRET_KEY'])
+'''
+
+ my_cluster = gl.deploy.ec2_cluster.load('s3://beerdata')
 '''    
