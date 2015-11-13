@@ -6,6 +6,9 @@ import numpy as np
 from sqlalchemy import create_engine
 import psycopg2
 
+
+gl.set_runtime_config('GRAPHLAB_DEFAULT_NUM_PYLAMBDA_WORKERS', 36)
+
 def param_sweep(taste_sf, beer_sf ):
     '''
     to use ...
@@ -17,21 +20,20 @@ def param_sweep(taste_sf, beer_sf ):
     '''
     train, valid = gl.recommender.util.random_split_by_user(taste_sf, user_id='user',\
          item_id='beer', max_num_users=4000, item_test_proportion=.2)
-    params = {      'target': 'taste',
-                    'user_id':'user',
+    params = {      'user_id':'user',
                     'item_id':'beer',
+                    'target': 'taste',
                     'item_data': [beer_sf],
-                    'num_factors': [8, 12],
-                    'regularization': [1e-4, 1e-6,1e-8],
-                    'linear_regularization':[ 1e-6, 1e-8, 1e-10],
+                    'num_factors': [8],
+                    'regularization': [1e-6, 1e-8],
+                    'linear_regularization':[1e-8, 1e-10],
                     'side_data_factorization':  False,
                     'nmf' :  False, 
                     'max_iterations': 50,
-                    'solver':'auto',
                     'verbose':True
                     }
 
-    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params, return_model=False)
+    gs = gl.grid_search.create((train, valid), gl.recommender.factorization_recommender.create, params, return_model=False)
     return gs
 
 
@@ -113,12 +115,17 @@ def load_sframes_from_s3():
     beer_sf = gl.SFrame('https://s3-us-west-2.amazonaws.com/beerdata/beer_df_wout_brewery.csv')
     taste_sf = gl.SFrame('https://s3-us-west-2.amazonaws.com/beerdata/taste_df_CA.csv')
     beer_sf = beer_sf.dropna()
+    taste_sf = taste_sf.dropna()
+    beer_sf.remove_column('beer.1')
+    beer_sf.remove_column('brewery')
     return taste_sf, beer_sf
 
 def load_sframes_from_csv():
     beer_sf = gl.SFrame(data='beer_df_wout_brewery.csv')
     beer_sf = beer_sf.dropna()
     taste_sf = gl.SFrame(data='taste_df_CA.csv')
+    taste_sf = taste_sf.dropna()
+#    taste_sf.remove_column('beer.1')
     return taste_sf, beer_sf
 
 def error_breakdown(truth, pred):
