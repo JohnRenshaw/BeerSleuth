@@ -114,7 +114,7 @@ def fit_model(taste_sf, beer_sf):
 
 def load_sframes_from_s3():
     beer_sf = gl.SFrame('s3://beerdata/beer_df_wout_brewery.csv')
-    taste_sf = gl.SFrame('s3://beerdata/taste_df.csv')
+    taste_sf = gl.SFrame('s3://beerdata/taste_df_CA.csv')
     beer_sf = beer_sf.dropna()
     return taste_sf, beer_sf
 
