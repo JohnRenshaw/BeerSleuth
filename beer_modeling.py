@@ -20,21 +20,18 @@ def param_sweep(taste_sf, beer_sf ):
     params = {      'target': 'taste',
                     'user_id':'user',
                     'item_id':'beer',
- #                  'user_data': user_side,
                     'item_data': [beer_sf],
                     'num_factors': [8, 12],
                     'regularization': [1e-4, 1e-6,1e-8],
-                    'linear_regularization':[1e-4, 1e-6, 1e-8, 1e-10],
+                    'linear_regularization':[ 1e-6, 1e-8, 1e-10],
                     'side_data_factorization':  False,
-                    'nmf' : [True, False], 
+                    'nmf' :  False, 
                     'max_iterations': 50,
-                    'sgd_step_size': 0,
                     'solver':'auto',
                     'verbose':True
                     }
 
-    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params,\
-             max_models=6, perform_trial_run=True)
+    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params, return_model=False)
     return gs
 
 
@@ -113,8 +110,8 @@ def fit_model(taste_sf, beer_sf):
 
 
 def load_sframes_from_s3():
-    beer_sf = gl.SFrame('s3://beerdata/beer_df_wout_brewery.csv')
-    taste_sf = gl.SFrame('s3://beerdata/taste_df_CA.csv')
+    beer_sf = gl.SFrame('https://s3-us-west-2.amazonaws.com/beerdata/beer_df_wout_brewery.csv')
+    taste_sf = gl.SFrame('https://s3-us-west-2.amazonaws.com/beerdata/taste_df_CA.csv')
     beer_sf = beer_sf.dropna()
     return taste_sf, beer_sf
 
