@@ -20,21 +20,14 @@ def param_sweep(taste_sf, beer_sf ):
     '''
     train, valid = gl.recommender.util.random_split_by_user(taste_sf, user_id='user',\
          item_id='beer', max_num_users=4000, item_test_proportion=.2)
-    params = {      'user_id':'user',
-                    'item_id':'beer',
-                    'target': 'taste',
-                    'item_data': [beer_sf],
-                    'num_factors': [8],
-                    'regularization': [1e-6, 1e-8],
-                    'linear_regularization':[1e-8, 1e-10],
-                    'side_data_factorization':  False,
-                    'nmf' :  False, 
-                    'max_iterations': 50,
-                    'verbose':True
-                    }
-
-    gs = gl.grid_search.create((train, valid), gl.recommender.factorization_recommender.create, params, return_model=False)
-    return gs
+    params = dict([('user_id','user'),
+                    ('item_id','beer'),
+                    ('target', 'taste'),
+                    ('regularization',[1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8]),
+                    ('linear_regularization',[1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8]),
+		    ('side_data_factorization', False) ])
+    rs = gl.random_search.create(datasets=(train, valid), model_factory=gl.recommender.factorization_recommender.create, model_parameters=params, max_models=25)
+    return rs
 
 
 def load_data_from_sql():
@@ -100,14 +93,14 @@ def fit_model(taste_sf, beer_sf):
         user_id='user',
         item_id='beer',
         item_data=beer_sf, 
-        regularization=1e-8,
-        linear_regularization=1e-10,
+        regularization=1e-3,
+        linear_regularization=1e-4,
         nmf=False, 
         num_factors=8, 
         target='taste',
         max_iterations=50,
         sgd_step_size=0,
-        side_data_factorization=False)
+        side_data_factorization=True)
     return m, train, valid
 
 
