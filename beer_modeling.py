@@ -3,8 +3,8 @@ import graphlab as gl
 import pandas as pd
 import os
 import numpy as np
-#from sqlalchemy import create_engine
-#import psycopg2
+from sqlalchemy import create_engine
+import psycopg2
 
 def param_sweep(taste_sf, beer_sf ):
     '''
@@ -23,27 +23,28 @@ def param_sweep(taste_sf, beer_sf ):
  #                  'user_data': user_side,
                     'item_data': [beer_sf],
                     'num_factors': [8, 12],
-                    'regularization': [1e-8, 1e-10],
-                    'linear_regularization':[1e-8, 1e-10],
+                    'regularization': [1e-4, 1e-6,1e-8],
+                    'linear_regularization':[1e-4, 1e-6, 1e-8, 1e-10],
                     'side_data_factorization':  False,
                     'nmf' : [True, False], 
-                    'max_iterations': 20,
+                    'max_iterations': 50,
                     'sgd_step_size': 0,
                     'solver':'auto',
                     'verbose':True
                     }
 
-    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params, max_models=5, perform_trial_run=False, evaluator=classification_rate )
+    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params,\
+             max_models=6, perform_trial_run=True)
     return gs
 
 
 def load_data_from_sql():
     engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
     taste_df = pd.read_sql_query('''
-        SELECT * FROM ratings
-        WHERE ratings.user NOT IN
+        SELECT * FROM caratings
+        WHERE caratings.user NOT IN
             (SELECT counts.reviewer FROM 
-                (SELECT ratings.user as reviewer,count(*) FROM ratings GROUP BY ratings.user) as counts 
+                (SELECT caratings.user as reviewer,count(*) FROM caratings GROUP BY caratings.user) as counts 
                 WHERE counts.count < 4)
          ''', engine)
 
@@ -76,7 +77,7 @@ def write_csv():
     beer_df.pop('index')
     beer_df.pop('style')
 #   beer_df = create_brewery_dummies(beer_df) 
-    taste_df.to_csv('taste_df_corpus.csv', encoding = 'utf-8')   
+    taste_df.to_csv('taste_df_CA.csv', encoding = 'utf-8')   
 
 def create_brewery_dummies(beer_df):
     copy_beer_df = beer_df
@@ -115,13 +116,13 @@ def load_sframes_from_s3():
     beer_sf = gl.SFrame('s3://beerdata/beer_df_wout_brewery.csv')
     taste_sf = gl.SFrame('s3://beerdata/taste_df.csv')
     beer_sf = beer_sf.dropna()
-    return beer_sf, taste_sf
+    return taste_sf, beer_sf
 
 def load_sframes_from_csv():
     beer_sf = gl.SFrame(data='beer_df_wout_brewery.csv')
     beer_sf = beer_sf.dropna()
-    taste_sf = gl.SFrame(data='taste_df.csv')
-    return beer_sf, taste_sf
+    taste_sf = gl.SFrame(data='taste_df_CA.csv')
+    return taste_sf, beer_sf
 
 def error_breakdown(truth, pred):
     error = pd.DataFrame(np.array(pred - truth))
@@ -131,15 +132,15 @@ def error_breakdown(truth, pred):
     comb = comb.sort_values(by='act')
     return comb
 
-def classification_rate(model, train, test):
+def classification_rate(m, train, test):
     """
     custom function to score model, rule is as follows:
     if true_score < 5 and pred < 5 : match
     if true_score > 5 and error < 1 : match
     others not considered a match
     """
-    train_preds = model.predict(train)
-    test_preds = model.predict(test)
+    train_preds = m.predict(train)
+    test_preds = m.predict(test)
     train_error=np.array(np.abs(train_preds - train['taste']))
     test_error=np.array(np.abs(test_preds - test['taste']))
     train_biased_recall = np.zeros(train_error.shape[0])
@@ -150,6 +151,6 @@ def classification_rate(model, train, test):
     test_biased_recall[test['taste'] <= 5 and test_preds <= 5] = 1
     train_biased_recall_score = np.sum(train_biased_recall)/train_biased_recall.shape[0]
     test_biased_recall_score = np.sum(test_biased_recall)/test_biased_recall.shape[0]
-    score_dict = dict([('train biased recall', train_biased_recall_score), ('test biased recall', test_biased_recall_score)])
-    return score_dict
+    score_dict = dict([('train classification_rate', train_biased_recall_score), ('test classification_rate', test_biased_recall_score)])
+    return score_dict, train_error, test_error
 
