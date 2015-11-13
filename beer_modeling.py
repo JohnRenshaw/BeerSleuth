@@ -23,17 +23,17 @@ def param_sweep(taste_sf, beer_sf ):
  #                  'user_data': user_side,
                     'item_data': [beer_sf],
                     'num_factors': [8, 12],
-                    'regularization': [1e-2, 1e-4, 1e-6, 1e-8, 1e-10],
-                    'linear_regularization':[1e-2,1e-4, 1e-6, 1e-8, 1e-10],
-                    'side_data_factorization': [True, False],
+                    'regularization': [1e-8, 1e-10],
+                    'linear_regularization':[1e-8, 1e-10],
+                    'side_data_factorization':  False,
                     'nmf' : [True, False], 
-                    'max_iterations': 50,
+                    'max_iterations': 20,
                     'sgd_step_size': 0,
                     'solver':'auto',
                     'verbose':True
                     }
 
-    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params, max_models=15, perform_trial_run=False )
+    gs = gl.random_search.create((train, valid), gl.recommender.factorization_recommender.create, params, max_models=5, perform_trial_run=False, evaluator=classification_rate )
     return gs
 
 
@@ -100,15 +100,15 @@ def fit_model(taste_sf, beer_sf):
         user_id='user',
         item_id='beer',
         item_data=beer_sf, 
-        regularization=1e-3,
-        linear_regularization=1e-5,
-        nmf=True, 
-        num_factors=12, 
+        regularization=1e-8,
+        linear_regularization=1e-10,
+        nmf=False, 
+        num_factors=8, 
         target='taste',
         max_iterations=50,
         sgd_step_size=0,
         side_data_factorization=False)
-    return m
+    return m, train, valid
 
 
 def load_sframes_from_s3():
@@ -118,8 +118,38 @@ def load_sframes_from_s3():
     return beer_sf, taste_sf
 
 def load_sframes_from_csv():
-    beer_sf = gl.SFrame(data='beer_df.csv')
+    beer_sf = gl.SFrame(data='beer_df_wout_brewery.csv')
     beer_sf = beer_sf.dropna()
     taste_sf = gl.SFrame(data='taste_df.csv')
     return beer_sf, taste_sf
+
+def error_breakdown(truth, pred):
+    error = pd.DataFrame(np.array(pred - truth))
+    truth = pd.DataFrame(np.array(truth))
+    comb = pd.concat([truth, error], axis=1)
+    comb.columns = ['act', 'error']
+    comb = comb.sort_values(by='act')
+    return comb
+
+def classification_rate(model, train, test):
+    """
+    custom function to score model, rule is as follows:
+    if true_score < 5 and pred < 5 : match
+    if true_score > 5 and error < 1 : match
+    others not considered a match
+    """
+    train_preds = model.predict(train)
+    test_preds = model.predict(test)
+    train_error=np.array(np.abs(train_preds - train['taste']))
+    test_error=np.array(np.abs(test_preds - test['taste']))
+    train_biased_recall = np.zeros(train_error.shape[0])
+    test_biased_recall = np.zeros(test_error.shape[0])
+    train_biased_recall[train['taste'] > 5 and train_error < 1] = 1
+    train_biased_recall[train['taste'] <= 5 and train_preds <= 5] = 1
+    test_biased_recall[test['taste'] > 5 and test_error < 1] = 1
+    test_biased_recall[test['taste'] <= 5 and test_preds <= 5] = 1
+    train_biased_recall_score = np.sum(train_biased_recall)/train_biased_recall.shape[0]
+    test_biased_recall_score = np.sum(test_biased_recall)/test_biased_recall.shape[0]
+    score_dict = dict([('train biased recall', train_biased_recall_score), ('test biased recall', test_biased_recall_score)])
+    return score_dict
 
