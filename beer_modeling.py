@@ -148,19 +148,26 @@ def classification_rate(m, train, test):
     test_biased_recall[test['taste'] <= 5 and test_preds <= 5] = 1
     train_biased_recall_score = np.sum(train_biased_recall)/train_biased_recall.shape[0]
     test_biased_recall_score = np.sum(test_biased_recall)/test_biased_recall.shape[0]
-    score_dict = dict([('train classification_rate', train_biased_recall_score), ('test classification_rate', test_biased_recall_score)])
-    return score_dict, train_error, test_error
+    score_dict = dict([('train_classification_rate', train_biased_recall_score), ('test_classification_rate', test_biased_recall_score)])
+    return score_dict
 
 
-def custom_random_search(taste_sf, beer_sf, reg_list, lin_reg_list, nmf_list, num_factors_list, max_iterations_list, num_models):
+def custom_random_search(taste_sf, beer_sf, reg_list, lin_reg_list, nmf_list, num_factors_list, max_iterations_list, num_models, side_list):
+    '''
+     random parameter seach, wrote because graphlabs wasnt working with side data, this runs in serial, better to use built in model if possible
+     
+     rand_search_results = custom_random_search(taste_sf, beer_sf, reg_list=np.logspace(0,-10),lin_reg_list=np.logspace(0,-10),nmf_list= [True, False],\
+     num_factors_list=[8,12,16], max_iterations_list=[50], num_models=10, side_list=False) 
+    '''
     train, valid = gl.recommender.util.random_split_by_user(taste_sf, user_id='user', item_id='beer', max_num_users=4000, item_test_proportion=.2)
-    this_reg = np.random.choice(reg_list)
-    this_lin_reg = np.random.choice(lin_reg_list)
-    this_nmf = np.random.choice(nmf_list)
-    this_num_factors= np.random.choice(num_factors_list)
-    this_max_iterations = np.random.choice(max_iterations_list)
-    agg = []
+    agg = [] 
     for i in xrange(num_models):
+        this_reg = np.random.choice(reg_list)
+        this_lin_reg = np.random.choice(lin_reg_list)
+        this_nmf = np.random.choice(nmf_list)
+        this_num_factors= np.random.choice(num_factors_list)
+        this_max_iterations = np.random.choice(max_iterations_list)
+        this_side_data_fact = np.random.choice(side_list)
         m = gl.recommender.factorization_recommender.create(train,
             user_id='user',
             item_id='beer',
@@ -172,16 +179,13 @@ def custom_random_search(taste_sf, beer_sf, reg_list, lin_reg_list, nmf_list, nu
             target='taste',
             max_iterations=this_max_iterations,
             sgd_step_size=0,
-            side_data_factorization=True)
+            side_data_factorization=this_side_data_fact)
         class_rate = classification_rate(m, train, valid)
-        this_train_class_rate = class_rate['train classification_rate']
-        this_test_class_rate = class_rate['test classification_rate']
+        this_train_class_rate = class_rate['train_classification_rate']
+        this_test_class_rate = class_rate['test_classification_rate']
         score = m.evaluate(valid)
         test_rmse = score['rmse_overall']
-        agg.append([this_reg, this_lin_reg, this_nmf, this_max_iterations, this_num_factors, m.get('training_rmse'), test_rmse, this_train_class_rate, this_test_class_rate ])
-        print agg   
-    return agg
-'''
-custom_random_search(taste_sf, beer_sf, reg_list=np.logpace(1,-10),lin_reg_list=np.logpace(1,-10),nmf_lis= [True, False],\
-     num_factors_list=[8,12,16], max_iterations_list=[50], num_models=10)
-'''
+        agg.append([this_reg, this_lin_reg, this_nmf, this_max_iterations, this_num_factors, this_side_data_fact, m.get('training_rmse'), test_rmse, this_train_class_rate, this_test_class_rate ])
+    agg_df = pd.DataFrame(agg, columns = ['reg', 'lin_reg', 'nmf', 'max_iterations', 'num_factors', 'side_data_factorization', 'training_rmse', 'test_rmse', 'train_class_rate', 'test_class_rate'])
+    return agg_df
+
