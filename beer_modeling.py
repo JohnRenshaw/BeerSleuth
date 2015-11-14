@@ -171,15 +171,16 @@ def custom_random_search(taste_sf, beer_sf, reg_list, lin_reg_list, nmf_list, nu
         m = gl.recommender.factorization_recommender.create(train,
             user_id='user',
             item_id='beer',
-            item_data=beer_sf, 
+          #  item_data=beer_sf, 
             regularization=this_reg,
             linear_regularization=this_lin_reg,
-            nmf=this_nmf, 
+          #  nmf=this_nmf, 
             num_factors=this_num_factors, 
             target='taste',
             max_iterations=this_max_iterations,
             sgd_step_size=0,
-            side_data_factorization=this_side_data_fact)
+         #   side_data_factorization=this_side_data_fact
+         )
         class_rate = classification_rate(m, train, valid)
         this_train_class_rate = class_rate['train_classification_rate']
         this_test_class_rate = class_rate['test_classification_rate']
@@ -187,6 +188,6 @@ def custom_random_search(taste_sf, beer_sf, reg_list, lin_reg_list, nmf_list, nu
         test_rmse = score['rmse_overall']
         agg.append([this_reg, this_lin_reg, this_nmf, this_max_iterations, this_num_factors, this_side_data_fact, m.get('training_rmse'), test_rmse, this_train_class_rate, this_test_class_rate ])
     agg_df = pd.DataFrame(agg, columns = ['reg', 'lin_reg', 'nmf', 'max_iterations', 'num_factors', 'side_data_factorization', 'training_rmse', 'test_rmse', 'train_class_rate', 'test_class_rate'])
-    agg_df.to_csv('random_search.csv')
+    agg_df.to_csv('random_search2.csv')
     return agg_df
 
