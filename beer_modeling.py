@@ -109,8 +109,6 @@ def load_sframes_from_s3():
     taste_sf = gl.SFrame('https://s3-us-west-2.amazonaws.com/beerdata/taste_df_CA.csv')
     beer_sf = beer_sf.dropna()
     taste_sf = taste_sf.dropna()
-    beer_sf.remove_column('beer.1')
-    beer_sf.remove_column('brewery')
     return taste_sf, beer_sf
 
 def load_sframes_from_csv():
@@ -118,10 +116,12 @@ def load_sframes_from_csv():
     beer_sf = beer_sf.dropna()
     taste_sf = gl.SFrame(data='taste_df_CA.csv')
     taste_sf = taste_sf.dropna()
-#    taste_sf.remove_column('beer.1')
     return taste_sf, beer_sf
 
 def error_breakdown(truth, pred):
+    '''
+    use this function to get a datafram of the errors grouped by the actual value
+    '''
     error = pd.DataFrame(np.array(pred - truth))
     truth = pd.DataFrame(np.array(truth))
     comb = pd.concat([truth, error], axis=1)
@@ -187,5 +187,6 @@ def custom_random_search(taste_sf, beer_sf, reg_list, lin_reg_list, nmf_list, nu
         test_rmse = score['rmse_overall']
         agg.append([this_reg, this_lin_reg, this_nmf, this_max_iterations, this_num_factors, this_side_data_fact, m.get('training_rmse'), test_rmse, this_train_class_rate, this_test_class_rate ])
     agg_df = pd.DataFrame(agg, columns = ['reg', 'lin_reg', 'nmf', 'max_iterations', 'num_factors', 'side_data_factorization', 'training_rmse', 'test_rmse', 'train_class_rate', 'test_class_rate'])
+    agg_df.to_csv('random_search.csv')
     return agg_df
 
