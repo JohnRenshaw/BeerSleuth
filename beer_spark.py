@@ -6,11 +6,12 @@ from operator import add
 from os.path import join, isfile, dirname
 from pyspark import SparkConf, SparkContext
 from pyspark import SQLContext, HiveContext
-from pyspark.ml.recommendation import ALS
+from pyspark.mllib.recommendation import MatrixFactorizationModel, ALS
+from pyspark.sql.types import *
 import pandas as pd
 import numpy as np
 from pymongo import MongoClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Table, MetaData
 import psycopg2
 
 client = MongoClient()
@@ -67,18 +68,75 @@ def mongo_to_df():
     ratings_df['taste'] = ratings_df['taste']*10
     return ratings_df
 
-def get_item_user_rev_from_pg():
-    engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
+def get_item_user_rev_from_pg(engine):
     taste_df = pd.read_sql_query('''
-        SELECT * FROM caratings 
-        WHERE caratings.user NOT IN 
+        SELECT * FROM ratings 
+        WHERE ratings.user NOT IN 
             (SELECT counts.reviewer FROM  
-                (SELECT caratings.user as reviewer,count(*) FROM caratings GROUP BY caratings.user)
+                (SELECT ratings.user as reviewer,count(*) FROM ratings GROUP BY ratings.user)
                  as counts WHERE counts.count < 4)
          ''', engine)
 
     taste_df = taste_df[['user_id', 'beer_id', 'taste']]
+    taste_df.taste = taste_df.taste.astype(int)
     return taste_df
+
+
+def model_param_sweep(train, test):
+    #model params
+    iterations = 20
+    regularization_param_list = np.linspace(0.1, 0.25, 5)
+
+    #params used in keeping track of error between different ranks
+    rank_list = [4, 6, 8]
+    errors = np.zeros(len(regularization_param_list)*len(rank_list))
+    err = 0
+    min_error = float('inf')
+    best_rank = -1
+    best_iteration = -1
+
+    for rank in rank_list:
+        for reg in regularization_param_list:
+            model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=False, iterations=iterations, lambda_=reg)
+            predictions =  model.predictAll(test.rdd.map(lambda r: (r[0], r[1]) )).map(lambda x: ((int(x[0]), int(x[1])), float(x[2])) )
+            rates_and_preds = test.rdd.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).join(predictions)
+            error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
+            errors[err] = error
+            err += 1
+            print 'For rank=%s, regParam=%s the RMSE is %s' % (rank, reg, error)
+            if error < min_error:
+                min_error = error
+                best_rank = (rank, reg)
+    print 'The best model was trained with (rank, regParam): %s' %str(best_rank)
+
+def fit_final_model(train):
+    #model params
+    iterations = 20
+    reg = 0.175
+    rank = 4
+    model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=False, iterations=iterations, lambda_=reg)
+    predictions =  model.predictAll(test.rdd.map(lambda r: (r[0], r[1]) )).map(lambda x: ((int(x[0]), int(x[1])), float(x[2])) )
+
+
+def get_user_beer_id_pairs(engine):
+    users_df = pd.read_sql_query('''SELECT DISTINCT ratings.user, user_id FROM ratings''', engine)
+    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM ratings''', engine)
+    return users_df, beer_df
+
+def add_rating_to_db(user, beer, taste, engine):
+    users_df, beer_df = get_user_beer_id_pairs(engine)
+    metadata = MetaData(engine)
+    ratings = Table('ratings', metadata, autoload=True)
+    if user not in users_df.user.values:
+        num_users = pd.read_sql_query('''SELECT DISTINCT count(ratings.user) FROM ratings''', engine)
+        user_id = num_users['count'].values[0]
+    else: user_id = users_df.user_id[users_df.user == user].values[0]
+    beer_id = beer_df.beer_id[beer_df.beer == beer].values[0]
+    _id = beer + '_' + user
+    i = ratings.insert()
+    i.execute(_id=_id,beer=beer,taste=taste,user=user, user_id=user_id, beer_id=beer_id )
+    print 'rating added successfully'
+
 
 if __name__ == '__main__':
     # set up environment
@@ -86,46 +144,21 @@ if __name__ == '__main__':
       .setAppName("BeerSleuthALS") \
       .set("spark.executor.memory", "2g")
     sc = SparkContext(conf=conf)
-    sqlContext = SQLContext(sc)
-
+    sqlContext = SQLContext(sc) 
 
     #load data
-    ratings_data = parseRating('ratings_spark.csv')
-    pd_df = mongo_to_df()
-    agged =pd_df.groupby('user_id', as_index=False).aggregate(len)
-    keep_list = agged[agged.taste > 4].user_id
-    ratings_sqldf = sqlContext.createDataFrame(pd_df[pd_df.user_id.isin(keep_list)])
-  #  ratings_sqldf = sqlContext.createDataFrame(ratings_data, ['user_id', 'beer_id', 'taste'])
+    engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
+    ratings_df = get_item_user_rev_from_pg(engine)
+    ratings_sqldf = sqlContext.createDataFrame(ratings_df)
     sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
-  #  smaller_sqldf = sqlContext.sql('SELECT * FROM ratings WHERE user NOT IN (SELECT reviewer FROM  (SELECT user as reviewer, count(*) FROM ratings GROUP BY user) counts WHERE count < 4)')
-
-    #split into training and test
- #   training_RDD, test_RDD = ratings_data.randomSplit([8, 2], seed=0L)
- #   test_for_predict_RDD = test_RDD.map(lambda x: (x[0], x[1]))
-
-    #model params
-    iterations = 30
-    regularization_param_list = np.linspace(0.15, 0.25, 5)
-
-    #params used in keeping track of error between different ranks
-    rank = 12
-    errors = np.zeros(len(regularization_param_list))
-    err = 0
-    min_error = float('inf')
-    best_rank = -1
-    best_iteration = -1
-    als = ALS().setItemCol('beer_id').setUserCol('user_id').setRatingCol('taste')
-    model = als.fit(ratings_sqldf)
-#    for reg in regularization_param_list:
-#        model = ALS.train(ratings_sqldf, userCol='user_id', item_col='beer_id',ratingCol='taste',  rank, iterations=iterations, lambda_=reg)
-#        predictions = model.predictAll(test_for_predict_RDD).map(lambda r: ((r[0], r[1]), r[2]))
-#        rates_and_preds = test_RDD.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).join(predictions)
-#        error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
-#        errors[err] = error
-#        err += 1
-#        print 'For regParam %s the RMSE is %s' % (reg, error)
-#        if error < min_error:
-#            min_error = error
-#            best_rank = reg#
-
-#    print 'The best model was trained with regParam %s' % best_rank
+    train, test = sqlContext.table('ratings').randomSplit([.8, .2])
+#    add_rating_to_db(user='johnjohn', beer=u'101 North Heroine IPA' , taste=8, engine=engine)
+#    add_rating_to_db(user='johnjohn', beer=u'Boulder Creek Golden Promise' , taste=6, engine=engine)
+#    model_param_sweep(train, test)
+#    import timeit
+#    start_time = timeit.default_timer()
+#    fit_final_model(ratings_sqldf)
+#    elapsed = timeit.default_timer() - start_time
+'''
+initial CA ratings db had 627431 ratings
+'''

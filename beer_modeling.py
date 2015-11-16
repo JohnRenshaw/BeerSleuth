@@ -23,10 +23,11 @@ def param_sweep(taste_sf, beer_sf ):
     params = dict([('user_id','user'),
                     ('item_id','beer'),
                     ('target', 'taste'),
+                    ('item_data', [beer_sf]),
                     ('regularization',[1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8]),
                     ('linear_regularization',[1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8]),
 		    ('side_data_factorization', False) ])
-    rs = gl.random_search.create(datasets=(train, valid), model_factory=gl.recommender.factorization_recommender.create, model_parameters=params, max_models=25)
+    rs = gl.random_search.create(datasets=(train, valid), model_factory=gl.recommender.factorization_recommender.create, model_parameters=params, max_models=5)
     return rs
 
 
@@ -58,18 +59,21 @@ def write_csv():
     taste_df, beer_df, text_df = load_data_from_sql()
 
     #feature engineering - style
-    style_counts = Counter(beer_df.style)
-    top_x_styles = [x[0] for x in style_counts.most_common(30)]
-    style_dummies = pd.get_dummies(beer_df.style)
-    style_dummies = style_dummies[top_x_styles]
-    style_dummies.columns = rem_unicode_from_colnames(style_dummies.columns)
+#    style_counts = Counter(beer_df.style)
+#    top_x_styles = [x[0] for x in style_counts.most_common(30)]
+#    style_dummies = pd.get_dummies(beer_df.style)
+#    style_dummies = style_dummies[top_x_styles]
+#    style_dummies.columns = rem_unicode_from_colnames(style_dummies.columns)
     beer_df = pd.merge(beer_df, text_df, left_index=True, right_index=True)
-    beer_df = pd.merge(beer_df, style_dummies, left_index=True, right_index=True)
+#    beer_df = pd.merge(beer_df, style_dummies, left_index=True, right_index=True)
     beer_df['beer'] = beer_df.index
     beer_df.pop('index')
-    beer_df.pop('style')
+ #   beer_df.pop('style')
 #   beer_df = create_brewery_dummies(beer_df) 
-    taste_df.to_csv('taste_df_CA.csv', encoding = 'utf-8')   
+    beer_df.brewery = beer_df.brewery.apply(lambda x: x.encode('ascii', 'ignore'))
+    beer_df.style = beer_df.style.apply(lambda x: x.encode('ascii', 'ignore'))
+    beer_df.to_csv('beer_df_2.csv', encoding = 'utf-8') 
+#    taste_df.to_csv('taste_df_CA.csv', encoding = 'utf-8')   
 
 def create_brewery_dummies(beer_df):
     copy_beer_df = beer_df
@@ -92,15 +96,17 @@ def fit_model(taste_sf, beer_sf):
     m = gl.recommender.factorization_recommender.create(train,
         user_id='user',
         item_id='beer',
-        item_data=beer_sf, 
-        regularization=1e-3,
-        linear_regularization=1e-4,
+#        item_data=beer_sf, 
+        regularization=4e-4,
+        linear_regularization=2e-5,
         nmf=False, 
-        num_factors=8, 
+        num_factors=5, 
         target='taste',
         max_iterations=50,
         sgd_step_size=0,
-        side_data_factorization=True)
+        side_data_factorization=False)
+  #  m.evaluate(valid)
+  #  print classification_rate(m, train, valid)
     return m, train, valid
 
 
@@ -112,9 +118,9 @@ def load_sframes_from_s3():
     return taste_sf, beer_sf
 
 def load_sframes_from_csv():
-    beer_sf = gl.SFrame(data='beer_df_wout_brewery.csv')
+    beer_sf = gl.SFrame(data='beer_df_2.csv')
     beer_sf = beer_sf.dropna()
-    taste_sf = gl.SFrame(data='taste_df_CA.csv')
+    taste_sf = gl.SFrame(data='taste_df_corpus.csv')
     taste_sf = taste_sf.dropna()
     return taste_sf, beer_sf
 
@@ -149,7 +155,7 @@ def classification_rate(m, train, test):
     train_biased_recall_score = np.sum(train_biased_recall)/train_biased_recall.shape[0]
     test_biased_recall_score = np.sum(test_biased_recall)/test_biased_recall.shape[0]
     score_dict = dict([('train_classification_rate', train_biased_recall_score), ('test_classification_rate', test_biased_recall_score)])
-    return score_dict
+    return score_dict,train_error, test_error
 
 
 def custom_random_search(taste_sf, beer_sf, reg_list, lin_reg_list, nmf_list, num_factors_list, max_iterations_list, num_models, side_list):
