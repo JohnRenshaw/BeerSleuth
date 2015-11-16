@@ -10,13 +10,9 @@ from pyspark.mllib.recommendation import MatrixFactorizationModel, ALS
 from pyspark.sql.types import *
 import pandas as pd
 import numpy as np
-from pymongo import MongoClient
 from sqlalchemy import create_engine, Table, MetaData
 import psycopg2
 
-client = MongoClient()
-db = client['ratebeer']
-beer_ratings = db.ratings
 
 def parseRating(ratings_file):
     """
@@ -28,45 +24,6 @@ def parseRating(ratings_file):
         .map(lambda line: line.split(",")).map(lambda tokens: (tokens[0], tokens[1], tokens[2])).cache()
     return ratings_data
 
-
-def mongo_to_csv():
-    #create users csv
-    users = beer_ratings.distinct('user')
-    users_df= pd.DataFrame({'user_id':range(len(users)), 'user':users})
-    users_df.user =users_df.user.apply(lambda x:str(x.encode('UTF-8','ignore')))
-    users_df.to_csv('users_spark.csv',index=False )
-
-    #create beers csv
-    beers = beer_ratings.distinct('beer')
-    beers_df= pd.DataFrame({'beer_id':range(len(beers)), 'beer':beers})
-    beers_df.beer = beers_df.beer.apply(lambda x:str(x.encode('UTF-8','ignore')))
-    beers_df.to_csv('beers_spark.csv',index=False )
-    #create ratings csv
-
-    ratings_df = pd.DataFrame(list(beer_ratings.find({},{'user':1,'beer':1,'taste':1})))
-    ratings_df.beer = ratings_df.beer.apply(lambda x:str(x.encode('UTF-8','ignore')))
-    ratings_df.user = ratings_df.user.apply(lambda x:str(x.encode('UTF-8','ignore')))
-    ratings_df = ratings_df[ratings_df['taste']!='NA'].merge(users_df, how='left').merge(beers_df, how='left').drop(['_id', 'beer', 'user'], axis=1)
-    ratings_df = ratings_df[['user_id', 'beer_id', 'taste']]
-    ratings_df['taste'] = ratings_df['taste']*10
-    ratings_df.to_csv('ratings_spark.csv', index=False, encoding='UTF-8' )
-
-def mongo_to_df():
-    #create users csv
-    users = beer_ratings.distinct('user')
-    users_df= pd.DataFrame({'user_id':range(len(users)), 'user':users})
-
-
-    #create beers csv
-    beers = beer_ratings.distinct('beer')
-    beers_df= pd.DataFrame({'beer_id':range(len(beers)), 'beer':beers})
-
-    #create ratings csv
-    ratings_df = pd.DataFrame(list(beer_ratings.find({},{'user':1,'beer':1,'taste':1})))
-    ratings_df = ratings_df[ratings_df['taste']!='NA'].merge(users_df, how='left').merge(beers_df, how='left').drop(['_id', 'beer', 'user'], axis=1)
-    ratings_df = ratings_df[['user_id', 'beer_id', 'taste']]
-    ratings_df['taste'] = ratings_df['taste']*10
-    return ratings_df
 
 def get_item_user_rev_from_pg(engine):
     taste_df = pd.read_sql_query('''
@@ -84,7 +41,7 @@ def get_item_user_rev_from_pg(engine):
 
 def model_param_sweep(train, test):
     #model params
-    iterations = 10
+    iterations = 20
     regularization_param_list = np.linspace(0.05, 0.2, 5)
 
     #params used in keeping track of error between different ranks
@@ -92,6 +49,7 @@ def model_param_sweep(train, test):
     errors = np.zeros(len(regularization_param_list)*len(rank_list))
     err = 0
     min_error = float('inf')
+    max_class_rate = 0
     best_rank = -1
     best_iteration = -1
 
@@ -100,28 +58,40 @@ def model_param_sweep(train, test):
             model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=True, iterations=iterations, lambda_=reg)
             predictions =  model.predictAll(test.rdd.map(lambda r: (r[0], r[1]) )).map(lambda x: ((int(x[0]), int(x[1])), float(x[2])) )
             rates_and_preds = test.rdd.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).join(predictions)
+            correct_count = rates_and_preds.filter(lambda r:( abs(r[1][0] - r[1][1]) < 1) or (r[1][0] < 6 and r[1][1] < 6) ).count()
+            total_count = rates_and_preds.count()
+	    class_rate = correct_count*1./total_count
             error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
             errors[err] = error
             err += 1
-            print 'For rank=%s, regParam=%s the RMSE is %s' % (rank, reg, error)
-            if error < min_error:
-                min_error = error
+            print 'For rank=%s, regParam=%s the RMSE is %s with a correct classification rate of %0.3f' % (rank, reg, error, class_rate)
+            if class_rate > max_class_rate:
+                max_class_rate = class_rate
                 best_rank = (rank, reg)
-    print 'The best model was trained with (rank, regParam): %s' %str(best_rank)
+    print 'The best model was trained with (rank, regParam): %s and had class rate %0.3f' %(str(best_rank), max_class_rate)
 
 def fit_final_model(train):
     #model params
-    iterations = 15
-    reg = 0.175
+    iterations = 20
+    reg = 0.0875
     rank = 4
-    model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=False, iterations=iterations, lambda_=reg)
-    predictions =  model.predictAll(test.rdd.map(lambda r: (r[0], r[1]) )).map(lambda x: ((int(x[0]), int(x[1])), float(x[2])) )
-
+    model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=True, iterations=iterations, lambda_=reg)
+    return model
 
 def get_user_beer_id_pairs(engine):
-    users_df = pd.read_sql_query('''SELECT DISTINCT ratings.user, user_id FROM ratings''', engine)
-    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM ratings''', engine)
+    users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings''', engine)
+    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3ratings''', engine)
     return users_df, beer_df
+
+
+def get_latent_beers(model, engine):
+    latents = pd.DataFrame(model.productFeatures().map(lambda row: [row[1][0], row[1][1], row[1][2], row[1][3]]).collect())
+    users_df, beer_df = get_user_beer_id_pairs(engine)
+    first_lat = beer_df.ix[np.argsort(latents[0])[::-1]]
+    second_lat = beer_df.ix[np.argsort(latents[1])[::-1]]
+    third_lat = beer_df.ix[np.argsort(latents[2])[::-1]]
+    fourth_lat = beer_df.ix[np.argsort(latents[3])[::-1]]
+    return first_lat, second_lat, third_lat, fourth_lat
 
 def add_rating_to_db(user, beer, taste, engine):
     users_df, beer_df = get_user_beer_id_pairs(engine)
@@ -155,11 +125,11 @@ if __name__ == '__main__':
     test = test.cache()
 #    add_rating_to_db(user='johnjohn', beer=u'101 North Heroine IPA' , taste=8, engine=engine)
 #    add_rating_to_db(user='johnjohn', beer=u'Boulder Creek Golden Promise' , taste=6, engine=engine)
-    model_param_sweep(train, test)
-#    import timeit
-#    start_time = timeit.default_timer()
-#    fit_final_model(ratings_sqldf)
-#    elapsed = timeit.default_timer() - start_time
+#    model_param_sweep(train, test)
+    import timeit
+    start_time = timeit.default_timer()
+    model = fit_final_model(ratings_sqldf)
+    elapsed = timeit.default_timer() - start_time
 '''
 initial CA ratings db had 627431 ratings
 '''
