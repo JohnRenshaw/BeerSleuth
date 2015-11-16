@@ -79,13 +79,13 @@ def get_item_user_rev_from_pg(engine):
 
     taste_df = taste_df[['user_id', 'beer_id', 'taste']]
     taste_df.taste = taste_df.taste.astype(int)
-    return taste_df
+    return sqlContext.createDataFrame(taste_df)
 
 
 def model_param_sweep(train, test):
     #model params
-    iterations = 20
-    regularization_param_list = np.linspace(0.1, 0.25, 5)
+    iterations = 10
+    regularization_param_list = np.linspace(0.05, 0.2, 5)
 
     #params used in keeping track of error between different ranks
     rank_list = [4, 6, 8]
@@ -97,7 +97,7 @@ def model_param_sweep(train, test):
 
     for rank in rank_list:
         for reg in regularization_param_list:
-            model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=False, iterations=iterations, lambda_=reg)
+            model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=True, iterations=iterations, lambda_=reg)
             predictions =  model.predictAll(test.rdd.map(lambda r: (r[0], r[1]) )).map(lambda x: ((int(x[0]), int(x[1])), float(x[2])) )
             rates_and_preds = test.rdd.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).join(predictions)
             error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
@@ -111,7 +111,7 @@ def model_param_sweep(train, test):
 
 def fit_final_model(train):
     #model params
-    iterations = 20
+    iterations = 15
     reg = 0.175
     rank = 4
     model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=False, iterations=iterations, lambda_=reg)
@@ -142,19 +142,20 @@ if __name__ == '__main__':
     # set up environment
     conf = SparkConf() \
       .setAppName("BeerSleuthALS") \
-      .set("spark.executor.memory", "2g")
+      .set("spark.executor.memory", "4g")
     sc = SparkContext(conf=conf)
     sqlContext = SQLContext(sc) 
 
     #load data
     engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
-    ratings_df = get_item_user_rev_from_pg(engine)
-    ratings_sqldf = sqlContext.createDataFrame(ratings_df)
+    ratings_sqldf = get_item_user_rev_from_pg(engine)
     sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
     train, test = sqlContext.table('ratings').randomSplit([.8, .2])
+    train = train.cache()
+    test = test.cache()
 #    add_rating_to_db(user='johnjohn', beer=u'101 North Heroine IPA' , taste=8, engine=engine)
 #    add_rating_to_db(user='johnjohn', beer=u'Boulder Creek Golden Promise' , taste=6, engine=engine)
-#    model_param_sweep(train, test)
+    model_param_sweep(train, test)
 #    import timeit
 #    start_time = timeit.default_timer()
 #    fit_final_model(ratings_sqldf)
