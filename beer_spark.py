@@ -87,11 +87,28 @@ def get_user_beer_id_pairs(engine):
 def get_latent_beers(model, engine):
     latents = pd.DataFrame(model.productFeatures().map(lambda row: [row[1][0], row[1][1], row[1][2], row[1][3]]).collect())
     users_df, beer_df = get_user_beer_id_pairs(engine)
-    first_lat = beer_df.ix[np.argsort(latents[0])[::-1]]
-    second_lat = beer_df.ix[np.argsort(latents[1])[::-1]]
-    third_lat = beer_df.ix[np.argsort(latents[2])[::-1]]
-    fourth_lat = beer_df.ix[np.argsort(latents[3])[::-1]]
-    return first_lat, second_lat, third_lat, fourth_lat
+    l1 = beer_df.ix[np.argsort(latents[0])[::-1]]
+    l2 = beer_df.ix[np.argsort(latents[1])[::-1]]
+    l3= beer_df.ix[np.argsort(latents[2])[::-1]]
+    l4 = beer_df.ix[np.argsort(latents[3])[::-1]]
+    l1['l1_rank']=range(1,len(l1)+1)
+    l2['l2_rank']=range(1,len(l2)+1)
+    l3['l3_rank']=range(1,len(l3)+1)
+    l4['l4_rank']=range(1,len(l4)+1)
+    combined = l1.merge(l2).merge(l3).merge(l4)
+    return combined
+
+def latent_feature_plots(l1, l2, l3, l4):
+    l1['l1_rank']=range(1,len(l1)+1)
+    l2['l2_rank']=range(1,len(l2)+1)
+    l3['l3_rank']=range(1,len(l3)+1)
+    l4['l4_rank']=range(1,len(l4)+1)
+    combined = l1.merge(l2).merge(l3).merge(l4)
+#    combined.plot(kind='scatter', x='l1_rank', y='l2_rank')
+#    sns.jointplot(data=combined, x='l1_rank', y='l2_rank', kind='kde')
+#    plt.show()
+    return combined
+
 
 def add_rating_to_db(user, beer, taste, engine):
     users_df, beer_df = get_user_beer_id_pairs(engine)
@@ -132,4 +149,4 @@ if __name__ == '__main__':
     elapsed = timeit.default_timer() - start_time
 '''
 initial CA ratings db had 627431 ratings
-'''
+'''     
