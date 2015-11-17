@@ -76,7 +76,7 @@ def fit_final_model(train):
 
 def get_user_beer_id_pairs(engine):
     users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings''', engine)
-    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3ratings''', engine)
+    beer_df = pd.read_sql_query('''SELECT DISTINCT * FROM beercounts''', engine)
     return users_df, beer_df
 
 
@@ -92,17 +92,6 @@ def get_latent_beers(model, engine):
     l3['l3_rank']=range(1,len(l3)+1)
     l4['l4_rank']=range(1,len(l4)+1)
     combined = l1.merge(l2).merge(l3).merge(l4)
-    return combined
-
-def latent_feature_plots(l1, l2, l3, l4):
-    l1['l1_rank']=range(1,len(l1)+1)
-    l2['l2_rank']=range(1,len(l2)+1)
-    l3['l3_rank']=range(1,len(l3)+1)
-    l4['l4_rank']=range(1,len(l4)+1)
-    combined = l1.merge(l2).merge(l3).merge(l4)
-#    combined.plot(kind='scatter', x='l1_rank', y='l2_rank')
-#    sns.jointplot(data=combined, x='l1_rank', y='l2_rank', kind='kde')
-#    plt.show()
     return combined
 
 
@@ -145,4 +134,6 @@ if __name__ == '__main__':
     elapsed = timeit.default_timer() - start_time
 '''
 initial CA ratings db had 627431 ratings
+CREATE TABLE beercounts AS (SELECT min(beer) beer ,min(beer_id) beer_id, count(*) FROM mt3ratings group by beer, beer_id);
+
 '''     
