@@ -27,11 +27,7 @@ def parseRating(ratings_file):
 
 def get_item_user_rev_from_pg(engine):
     taste_df = pd.read_sql_query('''
-        SELECT * FROM ratings 
-        WHERE ratings.user NOT IN 
-            (SELECT counts.reviewer FROM  
-                (SELECT ratings.user as reviewer,count(*) FROM ratings GROUP BY ratings.user)
-                 as counts WHERE counts.count < 4)
+        SELECT * FROM mt3ratings 
          ''', engine)
 
     taste_df = taste_df[['user_id', 'beer_id', 'taste']]
