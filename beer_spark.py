@@ -70,28 +70,32 @@ def fit_final_model(train):
     #model params
     iterations = 20
     reg = 0.0875
-    rank = 4
+    rank = 6
     model = ALS.train(train.rdd.map(lambda x: (x[0], x[1], x[2])), rank=rank, nonnegative=True, iterations=iterations, lambda_=reg)
     return model
 
 def get_user_beer_id_pairs(engine):
     users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings''', engine)
-    beer_df = pd.read_sql_query('''SELECT DISTINCT * FROM beercounts''', engine)
+    beer_df = pd.read_sql_query('''SELECT beers.beer, beers.beer_id, abv, calories, count, style, brewery FROM mt3ratings INNER JOIN beers ON mt3ratings.beer_id = beers.beer_id INNER JOIN beercounts on beercounts.beer_id = beers.beer_id;''', engine)
     return users_df, beer_df
 
 
 def get_latent_beers(model, engine):
-    latents = pd.DataFrame(model.productFeatures().map(lambda row: [row[1][0], row[1][1], row[1][2], row[1][3]]).collect())
+    latents = pd.DataFrame(model.productFeatures().map(lambda row: [row[1][0], row[1][1], row[1][2], row[1][3], row[1][4], row[1][5]]).collect())
     users_df, beer_df = get_user_beer_id_pairs(engine)
     l1 = beer_df.ix[np.argsort(latents[0])[::-1]]
     l2 = beer_df.ix[np.argsort(latents[1])[::-1]]
-    l3= beer_df.ix[np.argsort(latents[2])[::-1]]
+    l3 = beer_df.ix[np.argsort(latents[2])[::-1]]
     l4 = beer_df.ix[np.argsort(latents[3])[::-1]]
+    l5 = beer_df.ix[np.argsort(latents[4])[::-1]]
+    l6 = beer_df.ix[np.argsort(latents[5])[::-1]]
     l1['l1_rank']=range(1,len(l1)+1)
     l2['l2_rank']=range(1,len(l2)+1)
     l3['l3_rank']=range(1,len(l3)+1)
     l4['l4_rank']=range(1,len(l4)+1)
-    combined = l1.merge(l2).merge(l3).merge(l4)
+    l5['l5_rank']=range(1,len(l5)+1)
+    l6['l6_rank']=range(1,len(l6)+1)
+    combined = l1.merge(l2).merge(l3).merge(l4).merge(l5).merge(l6)
     return combined
 
 
