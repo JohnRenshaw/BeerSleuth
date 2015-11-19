@@ -25,7 +25,7 @@ def parseRating(ratings_file):
     return ratings_data
 
 
-def get_item_user_rev_from_pg(engine):
+def get_item_user_rev_from_pg(engine, sqlContext):
     taste_df = pd.read_sql_query('''
         SELECT * FROM mt3ratings 
          ''', engine)
@@ -76,7 +76,8 @@ def fit_final_model(train):
 
 def get_user_beer_id_pairs(engine):
     users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings''', engine)
-    beer_df = pd.read_sql_query('''SELECT beers.beer, beers.beer_id, abv, calories, count, style, brewery FROM mt3ratings INNER JOIN beers ON mt3ratings.beer_id = beers.beer_id INNER JOIN beercounts on beercounts.beer_id = beers.beer_id;''', engine)
+  #  beer_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.beer, mt3ratings.beer_id, abv, calories, count, style, brewery FROM mt3ratings INNER JOIN beers ON mt3ratings.beer_id = beers.beer_id INNER JOIN beercounts on beercounts.beer_id = beers.beer_id;''', engine)
+    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3ratings''', engine)
     return users_df, beer_df
 
 
@@ -99,18 +100,18 @@ def get_latent_beers(model, engine):
     return combined
 
 
-def add_rating_to_db(user, beer, taste, engine):
-    users_df, beer_df = get_user_beer_id_pairs(engine)
+def add_rating_to_db(user, beer_id, taste, engine, users_df, beer_df):
+    
     metadata = MetaData(engine)
-    ratings = Table('ratings', metadata, autoload=True)
+    ratings = Table('mt3ratings', metadata, autoload=True)
     if user not in users_df.user.values:
         num_users = pd.read_sql_query('''SELECT DISTINCT count(ratings.user) FROM ratings''', engine)
         user_id = num_users['count'].values[0]
     else: user_id = users_df.user_id[users_df.user == user].values[0]
-    beer_id = beer_df.beer_id[beer_df.beer == beer].values[0]
+    beer = beer_df.beer[beer_df['beer_id'] == beer_id].values[0]
     _id = beer + '_' + user
     i = ratings.insert()
-    i.execute(_id=_id,beer=beer,taste=taste,user=user, user_id=user_id, beer_id=beer_id )
+    i.execute(_id=_id,beer=beer,taste=taste,user=user, user_id=user_id, beer_id=beer_id, appdata = 1 )
     print 'rating added successfully'
 
 
@@ -124,18 +125,18 @@ if __name__ == '__main__':
 
     #load data
     engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
-    ratings_sqldf = get_item_user_rev_from_pg(engine)
+    ratings_sqldf = get_item_user_rev_from_pg(engine, sqlContext)
     sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
-    train, test = sqlContext.table('ratings').randomSplit([.8, .2])
-    train = train.cache()
-    test = test.cache()
-#    add_rating_to_db(user='johnjohn', beer=u'101 North Heroine IPA' , taste=8, engine=engine)
-#    add_rating_to_db(user='johnjohn', beer=u'Boulder Creek Golden Promise' , taste=6, engine=engine)
-#    model_param_sweep(train, test)
-    import timeit
-    start_time = timeit.default_timer()
+#    train, test = sqlContext.table('ratings').randomSplit([.8, .2])
+#    train = train.cache()
+#    test = test.cache()
+##    add_rating_to_db(user='johnjohn', beer=u'101 North Heroine IPA' , taste=8, engine=engine)
+##    add_rating_to_db(user='johnjohn', beer=u'Boulder Creek Golden Promise' , taste=6, engine=engine)
+##    model_param_sweep(train, test)
+#    import timeit
+#    start_time = timeit.default_timer()
     model = fit_final_model(ratings_sqldf)
-    elapsed = timeit.default_timer() - start_time
+#    elapsed = timeit.default_timer() - start_time
 '''
 initial CA ratings db had 627431 ratings
 CREATE TABLE beercounts AS (SELECT min(beer) beer ,min(beer_id) beer_id, count(*) FROM mt3ratings group by beer, beer_id);
