@@ -75,9 +75,15 @@ def fit_final_model(train):
     return model
 
 def get_user_beer_id_pairs(engine):
+    users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
+  #  beer_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.beer, mt3ratings.beer_id, abv, calories, count, style, brewery FROM mt3ratings INNER JOIN beers ON mt3ratings.beer_id = beers.beer_id INNER JOIN beercounts on beercounts.beer_id = beers.beer_id;''', engine)
+    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3beers''', engine)
+    return users_df, beer_df
+
+def get_app_user_beer_id_pairs(engine):
     users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings''', engine)
   #  beer_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.beer, mt3ratings.beer_id, abv, calories, count, style, brewery FROM mt3ratings INNER JOIN beers ON mt3ratings.beer_id = beers.beer_id INNER JOIN beercounts on beercounts.beer_id = beers.beer_id;''', engine)
-    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3ratings''', engine)
+    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3beers''', engine)
     return users_df, beer_df
 
 

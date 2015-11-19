@@ -9,13 +9,14 @@
     <meta name="description" content="">
     <meta name="author" content="">
 
-    <title>Freelancer - Start Bootstrap Theme</title>
+    <title>BeerSleuth: Beer Recommender</title>
 
     <!-- Bootstrap Core CSS - Uses Bootswatch Flatly Theme: http://bootswatch.com/flatly/ -->
-    <link href="../static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../static/css/bootstrap.css" rel="stylesheet">
 
     <!-- Custom CSS -->
     <link href="../static/css/freelancer.css" rel="stylesheet">
+    <link href="../static/css/style.css" rel="stylesheet">
 
     <!-- Custom Fonts -->
     <link href="../static/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
@@ -54,10 +55,10 @@
                         <a href="#page-top"></a>
                     </li>
                     <li class="page-scroll">
-                        <a href="#portfolio">RATE</a>
+                        <a href="#rate">RATE</a>
                     </li>
                     <li class="page-scroll">
-                        <a href="#about">GET RECOMMENDATIONS</a>
+                        <a href="#predict">GET RECOMMENDATIONS</a>
                     </li>
                     <li class="page-scroll">
                         <a href="#contact">Contact</a>
@@ -82,57 +83,55 @@
             </div>
         </div>
     </header>
-
-    <!-- Portfolio Grid Section -->
-    <section id="portfolio">
+<div ng-app="angularTypeahead">
+    <!-- Rate Section -->
+    <section id="rate">
         <div class="container">
             <div class="row">
                 <div class="col-lg-12 text-center">
                     <h2>Rate</h2>
                     <hr class="star-primary">
-                     <span class="skills">RATE 3 OR MORE BEERS TO TRAIN THE MODEL</span>
-                     </div>
-
-
-                        <form action="." method = "POST" >
+                    <span class="skills">RATE 3 OR MORE BEERS TO TRAIN THE MODEL</span>
+                </div>
+                <form action="." method = "POST" >
                         <div class="col-xs-4">
                             <input type="text" class="form-control" placeholder="Choose a user name" name = "usern">
-                        <br>
-                        <br>
+                            <br>
+                            <br>
                         </div>
                         <br>
-                          <div ng-app="angularTypeahead">
-                               <div class="container-fluid" ng-controller="TypeaheadCtrl">
-                                <input name="beer1" id="beer1" type="text" placeholder="Beer to Rate" ng-model="selected" typeahead="state for state in states | filter:$viewValue | limitTo:15" class="form-control" >
-                              </div>
-                            <br>
-                                <div class="col-xs-4">
-                                <input type="text" class="form-control" placeholder="Beer 1 Rating" name = "br1">
-                             <br>
-                             </div>
-                            
-                                <div class="container-fluid" ng-controller="TypeaheadCtrl">
-                                    <input name="beer2" id="beer2" type="text" placeholder="Beer to Rate" ng-model="selected" typeahead="state for state in states | filter:$viewValue | limitTo:15" class="form-control" >
+                        
+                           <div class="container-fluid" ng-controller="TypeaheadCtrl">
+                                <input name="beer1" id="beer1" type="text" placeholder="Beer to Rate" ng-model="selected" typeahead="beer for beer in beers | filter:$viewValue | limitTo:15" autocomplete="off" class="form-control" >
+                           </div>
+                           <br>
+                            <div class="col-xs-4">
+                               <input type="text" class="form-control" autocomplete="off" placeholder="Beer 1 Rating" name = "br1">
                                 <br>
-                                </div>
-                            
-                                <div class="col-xs-4">
-                                <input type="text" class="form-control" placeholder="Beer 2 Rating" name = "br2">
-                             <br>
-                              </div>
-                            
-                                <div class="container-fluid" ng-controller="TypeaheadCtrl">
-                                <input name="beer3" id="beer3" type="text" placeholder="Beer to Rate" ng-model="selected" typeahead="state for state in states | filter:$viewValue | limitTo:15" class="form-control" >
-                              </div>
-                            <br>
-                                <div class="col-xs-12">
-                                <input type="text" class="form-control" placeholder="Beer 3 Rating" name = "br3">              
-                            <br>
-                                 <button type="submit" class="btn btn-primary" >Add Ratings</button>
-                                 </div>
                             </div>
-                        </form>
-                        <div class="row">
+                        
+                            <div class="container-fluid" ng-controller="TypeaheadCtrl">
+                                <input name="beer2" id="beer2" type="text" placeholder="Beer to Rate" ng-model="selected" typeahead="beer for beer in beers | filter:$viewValue | limitTo:15" autocomplete="off"  class="form-control" >
+                                <br>
+                            </div>
+                        
+                            <div class="col-xs-4">
+                                <input type="text" class="form-control" autocomplete="off" placeholder="Beer 2 Rating" name = "br2">
+                                <br>
+                            </div>
+                        
+                            <div class="container-fluid" ng-controller="TypeaheadCtrl">
+                               <input name="beer3" id="beer3" type="text" placeholder="Beer to Rate" ng-model="selected" typeahead="beer for beer in beers | filter:$viewValue | limitTo:15" autocomplete="off" class="form-control" >
+
+                            </div>
+                            <br>
+                            <div class="col-xs-4">
+                                <input type="text" class="form-control" autocomplete="off" placeholder="Beer 3 Rating" name = "br3">        <br>
+                                <button type="submit" class="btn btn-primary" >Add Ratings</button>
+                            </div>
+                        
+                </form>
+                <div class="row">
 
 
 
@@ -142,35 +141,31 @@
         </div>
     </section>
 
-    <!-- About Section -->
-    <section class="success" id="about">
+    <!-- Predict Section -->
+    <section class="success" id="predict">
         <div class="container">
             <div class="row">
                 <div class="col-lg-12 text-center">
                     <h2>Recommendations</h2>
                     <hr class="star-light">
-                    <form action="." method = "POST" >
-                          <div class="col-xs-4">
-                             <input type="text" class="form-control" placeholder="Your user name" name = "rec_usern">
-                             <br>
-                             <br>
-                          </div>
-                          <br>
-                          <div ng-app="angularTypeahead">
-                               <div class="container-fluid" ng-controller="TypeaheadCtrl">
-                                    <input name="beer1" id="beer1" type="text" placeholder="Beer you would like a recommended taste rating for" ng-model="selected" typeahead="state for state in states | filter:$viewValue | limitTo:15" class="form-control" >
-                                             <br>
-                                    
-                                </div>
-                                     
-
-                          </div>
-                          <button type="submit" class="btn btn-primary">Get Predicted Rating</button>
-                    </form>
                 </div>
-            </div>
-            <div class="row">
+                <form action="/preds" method = "POST" >
+                    <div class="col-xs-4">
+                        <input type="text" class="form-control" placeholder="Choose a user name" name = "usern2">
+                        <br>
+                        <br>
+                    </div>
 
+                        <div class="container-fluid" ng-controller="TypeaheadCtrl">
+                            <input name="beer_p" id="beer_p" type="text" placeholder="Beer to Predict" ng-model="selected" typeahead="beer for beer in beers | filter:$viewValue | limitTo:15" autocomplete="off" class="form-control" >
+                            <br>
+                         </div>
+                         <div class = "col-xs-4"> 
+                             <button type="submit" class="btn btn-primary2">Get Predicted Rating</button>
+                        </div>
+</div>
+                </form>
+            </div>
         </div>
     </section>
 
@@ -520,37 +515,15 @@
 
     <!-- Contact Form JavaScript -->
     <script src="../static/js/jqBootstrapValidation.js"></script>
-    <script src="../static/js/contact_me.js"></script>
+    <!--<script src="../static/js/contact_me.js"></script>-->
 
     <!-- Custom Theme JavaScript -->
     <script src="../static/js/freelancer.js"></script>
 
     <!-- search menu -->
-    <script src="../static/js/the-basics.js"></script>
     <script src='http://ajax.googleapis.com/ajax/libs/angularjs/1.3.2/angular.min.js'></script>
     <script src='http://angular-ui.github.io/bootstrap/ui-bootstrap-tpls-0.12.0.js'></script>
-
-    <script type="text/javascript">// https://angular-ui.github.io/
-
-            // setup app and pass ui.bootstrap as dep
-            var myApp = angular.module("angularTypeahead", ["ui.bootstrap"]);
-
-            // define factory for data source
-            myApp.factory("States", function(){
-              var states = {{beer_list|safe}} ;
-              return states;
-              
-            });
-
-            // setup controller and pass data source
-            myApp.controller("TypeaheadCtrl", function($scope, States) {
-                
-                $scope.selected = undefined;
-                
-                $scope.states = States;
-
-                
-});</script>>
+    <script src="../static/js/index.js"></script>>
  
 </body>
 
