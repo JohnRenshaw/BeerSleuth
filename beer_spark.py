@@ -27,10 +27,8 @@ def parseRating(ratings_file):
 
 def get_item_user_rev_from_pg(engine, sqlContext):
     taste_df = pd.read_sql_query('''
-        SELECT * FROM mt3ratings 
+        SELECT user_id, beer_id, taste FROM mt3ratings 
          ''', engine)
-
-    taste_df = taste_df[['user_id', 'beer_id', 'taste']]
     taste_df.taste = taste_df.taste.astype(int)
     return sqlContext.createDataFrame(taste_df)
 
@@ -56,7 +54,7 @@ def model_param_sweep(train, test):
             rates_and_preds = test.rdd.map(lambda r: ((int(r[0]), int(r[1])), float(r[2]))).join(predictions)
             correct_count = rates_and_preds.filter(lambda r:( abs(r[1][0] - r[1][1]) < 1) or (r[1][0] < 6 and r[1][1] < 6) ).count()
             total_count = rates_and_preds.count()
-	    class_rate = correct_count*1./total_count
+            class_rate = correct_count*1./total_count
             error = math.sqrt(rates_and_preds.map(lambda r: (r[1][0] - r[1][1])**2).mean())
             errors[err] = error
             err += 1
@@ -75,13 +73,13 @@ def fit_final_model(train):
     return model
 
 def get_user_beer_id_pairs(engine):
-    users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
+    users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings''', engine)
   #  beer_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.beer, mt3ratings.beer_id, abv, calories, count, style, brewery FROM mt3ratings INNER JOIN beers ON mt3ratings.beer_id = beers.beer_id INNER JOIN beercounts on beercounts.beer_id = beers.beer_id;''', engine)
     beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3beers''', engine)
     return users_df, beer_df
 
 def get_app_user_beer_id_pairs(engine):
-    users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings''', engine)
+    users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
   #  beer_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.beer, mt3ratings.beer_id, abv, calories, count, style, brewery FROM mt3ratings INNER JOIN beers ON mt3ratings.beer_id = beers.beer_id INNER JOIN beercounts on beercounts.beer_id = beers.beer_id;''', engine)
     beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3beers''', engine)
     return users_df, beer_df
@@ -106,19 +104,29 @@ def get_latent_beers(model, engine):
     return combined
 
 
-def add_rating_to_db(user, beer_id, taste, engine, users_df, beer_df):
-    
+def add_rating_to_db(user, beer_id, taste, engine,preds=0):
+    users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
+    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3beers''', engine)
     metadata = MetaData(engine)
     ratings = Table('mt3ratings', metadata, autoload=True)
     if user not in users_df.user.values:
-        num_users = pd.read_sql_query('''SELECT DISTINCT count(ratings.user) FROM ratings''', engine)
-        user_id = num_users['count'].values[0]
+        num_users = pd.read_sql_query('''SELECT max(user_id) as users FROM mt3ratings''', engine)
+        user_id = num_users['users'].values[0]+1000000
     else: user_id = users_df.user_id[users_df.user == user].values[0]
     beer = beer_df.beer[beer_df['beer_id'] == beer_id].values[0]
     _id = beer + '_' + user
     i = ratings.insert()
-    i.execute(_id=_id,beer=beer,taste=taste,user=user, user_id=user_id, beer_id=beer_id, appdata = 1 )
+    i.execute(_id=_id,beer=beer,taste=taste,user=user, user_id=user_id, beer_id=beer_id, appdata = 1)
     print 'rating added successfully'
+
+def add_pred_to_db(user_id, beer_id, pred, engine):
+    metadata = MetaData(engine)
+    preds = Table('predictions', metadata, autoload=True)
+    i = preds.insert()
+    i.execute( user_id=user_id, beer_id=beer_id, pred = pred )
+
+
+
 
 
 if __name__ == '__main__':
