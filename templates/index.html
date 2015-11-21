@@ -127,7 +127,7 @@
                             <br>
                             <div class="col-xs-4">
                                 <input type="text" class="form-control" autocomplete="off" placeholder="Beer 3 Rating" name = "br3">        <br>
-                                <button type="submit" class="btn btn-primary" >Add Ratings</button>
+                                <button type="submit" class="btn btn-primary" value="Add" name="beer button">Add Ratings</button>
                             </div>   
                 </form>
                 <br>
@@ -142,9 +142,23 @@
                     <span class="skills">ONLY NECESSARY FOR FIRST TIME USERS OR IF NEW RATINGS ARE ADDED</span>
                     <br>
                     <br>
-                    <form action="/predict" method = "POST">
-                        <button type="submit" class="btn btn-primary" value="Submit">Train</button>
+                    <form action="." method = "POST">
+                        <button type="submit" class="btn btn-primary" value="Train" name="beer button" onclick="working()">Train</button>
                     </form>
+
+                        <div id="status_label"><p></p></div>
+                        <script>
+                        function working() {
+                          var xhttp = new XMLHttpRequest();
+                          xhttp.onreadystatechange = function() {
+                            if (xhttp.readyState == 4 && xhttp.status == 200) {
+                              document.getElementById("status_label").innerHTML = xhttp.responseText;
+                            }
+                          };
+                          xhttp.open("GET", "running", true);
+                          xhttp.send();
+                        }
+                        </script>
                 </div>
     </section>
 
@@ -172,6 +186,7 @@
                          <button type="submit" class="btn btn-primary2" value="Submit">Get Predicted Rating</button>
                     </div>
                 </form>
+                <p>{{ error_str | safe }}</p>
             </div>
 
         </div>
@@ -532,8 +547,8 @@
     <!-- search menu -->
     <script src='http://ajax.googleapis.com/ajax/libs/angularjs/1.3.2/angular.min.js'></script>
     <script src='http://angular-ui.github.io/bootstrap/ui-bootstrap-tpls-0.12.0.js'></script>
-    <script src="../static/js/index.js"></script>>
- 
+    <script src="../static/js/index.js"></script>
+
 </body>
 
 </html>

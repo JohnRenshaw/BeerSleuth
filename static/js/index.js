@@ -15,4 +15,3 @@ myApp.controller("TypeaheadCtrl", function($scope, $http, Beers) {
          $scope.beers = data.data
      })
 });
-

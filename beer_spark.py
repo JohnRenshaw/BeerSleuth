@@ -104,19 +104,20 @@ def get_latent_beers(model, engine):
     return combined
 
 
-def add_rating_to_db(user, beer_id, taste, engine,preds=0):
+def add_rating_to_db(user, beer, beer_id, taste, engine,preds=0):
     users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
-    beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3beers''', engine)
     metadata = MetaData(engine)
     ratings = Table('mt3ratings', metadata, autoload=True)
     if user not in users_df.user.values:
         num_users = pd.read_sql_query('''SELECT max(user_id) as users FROM mt3ratings''', engine)
         user_id = num_users['users'].values[0]+1000000
     else: user_id = users_df.user_id[users_df.user == user].values[0]
-    beer = beer_df.beer[beer_df['beer_id'] == beer_id].values[0]
     _id = beer + '_' + user
     i = ratings.insert()
-    i.execute(_id=_id,beer=beer,taste=taste,user=user, user_id=user_id, beer_id=beer_id, appdata = 1)
+    try: i.execute(_id=_id,beer=beer,taste=taste,user=user, user_id=user_id, beer_id=beer_id, appdata = 1)
+    except KeyError, IntegrityError:
+        print 'user - beer pair already in db or empty field present'
+        return
     print 'rating added successfully'
 
 def add_pred_to_db(user_id, beer_id, pred, engine):
