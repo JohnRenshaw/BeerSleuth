@@ -4,8 +4,9 @@ import json
 import pandas as pd
 import shutil
 import time
-from flask import Flask, render_template, request, flash, redirect, url_for
+from flask import Flask, render_template, request, flash, redirect, url_for, jsonify
 from sqlalchemy import create_engine, Table, MetaData
+from sqlalchemy.exc import DataError, IntegrityError
 from pyspark import SparkConf, SparkContext
 from pyspark import SQLContext, HiveContext
 from pyspark.mllib.recommendation import MatrixFactorizationModel
@@ -25,30 +26,7 @@ def index():
         return render_template('index.html', title='BeerSleuth', beer_dict = json.dumps(beer_dict) , test= json.dumps('idle'))
     if request.method == 'POST':
         if request.form['beer button'] == 'Add' :
-            username = request.form['usern'].encode('utf-8')
-            beer1 = request.form['beer1']
-            br1 = request.form['br1']
-            if br1 and beer1:
-                try: 
-                    beer_id1=  beer_dict[beer1.encode('utf-8')]
-                    modeling.add_rating_to_db(username, beer1, beer_id1, br1, engine)
-                except KeyError, sqlalchemy.exc.DataError: pass
-            
-            beer2 = request.form['beer2']
-            br2 = request.form['br2']
-            if br2 and beer2:
-                try: 
-                    beer_id2=  beer_dict[beer2.encode('utf-8')]
-                    modeling.add_rating_to_db(username, beer2, beer_id2, br2, engine)
-                except KeyError, sqlalchemy.exc.DataError: pass
 
-            beer3 = request.form['beer3']
-            br3 = request.form['br3']
-            if br3 and beer3:
-                try: 
-                    beer_id3=  beer_dict[beer3.encode('utf-8')]
-                    modeling.add_rating_to_db(username, beer3, beer_id3, br3, engine)
-                except KeyError, sqlalchemy.exc.DataError: pass
             return render_template('index.html', title='BeerSleuth', beer_dict = json.dumps(beer_dict), user_pred=0, beer_pred=0, pred=0)
         else:
             ratings_sqldf = modeling.get_item_user_rev_from_pg(engine, sqlContext)
@@ -144,6 +122,42 @@ def running():
 def user_list():
     return json.dumps(users_df['user'].values.tolist())
 
+@app.route('/ratings_form_data')
+def add_rating():
+    i=0
+    return_string = "No ratings added"
+    usern = request.args.get('usern')
+    beer1 = request.args.get('beer1')
+    br1 = request.args.get('br1')
+    beer2 = request.args.get('beer2')
+    br2 = request.args.get('br2')
+    beer3 = request.args.get('beer3')
+    br3 = request.args.get('br3')
+    try: key = request.args.get('key')
+    except NameError: key = 'e'
+    if key == 'abcd':
+        if br1 and beer1:
+            try:
+                beer_id1=  beer_dict[beer1.encode('utf-8')]
+                modeling.add_rating_to_db(usern, beer1, beer_id1, br1, engine)
+                i += 1
+            except  (KeyError, DataError, IntegrityError): pass
+        if br2 and beer2:
+            try:
+                beer_id2=  beer_dict[beer2.encode('utf-8')]
+                modeling.add_rating_to_db(usern, beer2, beer_id2, br2, engine)
+                i += 1
+            except  (KeyError, DataError, IntegrityError): pass
+        if br3 and beer3:
+            try:
+                beer_id3=  beer_dict[beer3.encode('utf-8')]
+                modeling.add_rating_to_db(usern, beer3, beer_id3, br3, engine)
+                i += 1
+            except (KeyError, DataError, IntegrityError): pass
+        return_string = '%i ratings added to db'%i
+        return jsonify(result = return_string)
+    else: jsonify(result = return_string)
+
 if __name__ == '__main__':
     engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
     users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
@@ -156,6 +170,5 @@ if __name__ == '__main__':
       .setAppName("BeerSleuthALS") \
       .set("spark.executor.memory", "4g")
     sc = SparkContext(conf=conf)
-    sqlContext = SQLContext(sc) 
+    sqlContext = SQLContext(sc)
     app.run(host='0.0.0.0', port=8080, debug=True)
-
