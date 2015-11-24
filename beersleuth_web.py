@@ -20,94 +20,34 @@ app = Flask(__name__)
 app.secret_key = 'many random bytes'
 
 # home page
-@app.route('/', methods=['GET','POST'])
+@app.route('/')
 def index():
-    if request.method == 'GET':
-        return render_template('index.html', title='BeerSleuth', beer_dict = json.dumps(beer_dict) , test= json.dumps('idle'))
-    if request.method == 'POST':
-        if request.form['beer button'] == 'Add' :
+    return render_template('index.html', title='BeerSleuth')
 
-            return render_template('index.html', title='BeerSleuth', beer_dict = json.dumps(beer_dict), user_pred=0, beer_pred=0, pred=0)
-        else:
-            ratings_sqldf = modeling.get_item_user_rev_from_pg(engine, sqlContext)
-            sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
-            model = modeling.fit_final_model(ratings_sqldf)
-            path = os.getcwd()
-            shutil.rmtree('metadata', ignore_errors=True)
-            shutil.rmtree('data', ignore_errors=True)
-            model.save(sc, path)
-
-            #    beer_id_list = beer_dict.values()
-            #    u_id_df = pd.read_sql_query('''SELECT DISTINCT slist.user_id FROM (SELECT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1) slist''', engine)
-            #    predict_list = [(u_id, b_id ) for b_id in beer_id_list for u_id in u_id_df.user_id.values]
-            #    pred_rdd = sc.parallelize(predict_list)
-            #    pred_list = model.predictAll(pred_rdd).collect()
-            #    for pred in pred_list:
-            #        modeling.add_pred_to_db(pred[0], pred[1], pred[2], engine)
-            return render_template('index.html', title='BeerSleuth', beer_dict = json.dumps(beer_dict))
+@app.route('/get_ratings')
+def get_ratings():
+    usern = request.args.get('usern')
+    try: key = request.args.get('key')
+    except NameError: key = 'e'
+    if key == 'abcd':
+        query = "SELECT beer, taste FROM mt3ratings WHERE mt3ratings.user = '%s'" %usern
+        user_ratings = pd.read_sql_query(query, engine)
+        return  jsonify(result = user_ratings.to_html(index=False, col_space = "50%", classes = "table-hover"))
 
 
-
-
-
-@app.route('/recs', methods=['POST'])
-def get_recs():
-    user = request.form['user_n2']
-    beer = request.form['beer_p'].encode('utf-8')
-    print(beer)
-    print(users_df['user'].values)
-    if user not in users_df['user'].values or beer not in beer_dict.keys():
-        error_str =  "Unrecognized beer or user, have you added ratings and trained the model?"
-        return render_template('index.html', title='BeerSleuth', beer_dict = json.dumps(beer_dict), error_str = error_str)
-    user_id = users_df.user_id[users_df.user == user].values[0]
-    beer_id = beer_dict[beer]
-    path = os.getcwd()
-    model = MatrixFactorizationModel.load(sc, path)
-    pred = model.predict(user_id, beer_id)
-    pred_df = pd.DataFrame({
-        'user':[user],
-        'beer':[beer],
-        'prediction':[pred]
-        }, columns=['user', 'beer', 'prediction'])
-
-    return '''
-            <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="utf-8">
-            <meta http-equiv="X-UA-Compatible" content="IE=edge">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta name="description" content="">
-            <meta name="author" content="">
-
-            <title>BeerSleuth: Beer Recommender</title>
-
-            <!-- Bootstrap Core CSS - Uses Bootswatch Flatly Theme: http://bootswatch.com/flatly/ -->
-            <link href="../static/css/bootstrap.css" rel="stylesheet">
-
-            <!-- Custom CSS -->
-            <link href="../static/css/freelancer.css" rel="stylesheet">
-            <link href="../static/css/style.css" rel="stylesheet">
-
-            <!-- Custom Fonts -->
-            <link href="../static/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
-            <link href="http://fonts.googleapis.com/css?family=Montserrat:400,700" rel="stylesheet" type="text/css">
-            <link href="http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic" rel="stylesheet" type="text/css">
-
-            <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
-            <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
-            <!--[if lt IE 9]>
-                <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
-                <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
-            <![endif]-->
-        </head>
-        <body>
-                <br>
-                 <div class="col-lg-8" .center-block>
-                    %s
-                    </div>
-        </body>
-            ''' %pred_df.to_html(classes = [".table"], index = False, float_format=lambda x:'%.1f' %x)
+@app.route('/fitting')
+def ALS_fit():
+    try: key = request.args.get('key')
+    except NameError: key = 'e'
+    if key == 'abcd':
+        ratings_sqldf = modeling.get_item_user_rev_from_pg(engine, sqlContext)
+        sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
+        model = modeling.fit_final_model(ratings_sqldf)
+        path = os.getcwd()
+        shutil.rmtree('metadata', ignore_errors=True)
+        shutil.rmtree('data', ignore_errors=True)
+        model.save(sc, path)
+        return jsonify(result="Model training complete, you may now get predictions")
 
 
 @app.route('/beerlist')
@@ -116,7 +56,7 @@ def beer_list():
 
 @app.route('/running')
 def running():
-    return "Teaching computers to like beer, this could take up to 30 seconds, page wil refresh when done"
+    return "Teaching computers to like beer, this could take up to 30 seconds, page will refresh when done"
 
 @app.route('/userlist')
 def user_list():
@@ -156,11 +96,32 @@ def add_rating():
             except (KeyError, DataError, IntegrityError): pass
         return_string = '%i ratings added to db'%i
         return jsonify(result = return_string)
-    else: jsonify(result = return_string)
+    else: return jsonify(result = return_string)
+
+@app.route('/prediction')
+def prediction():
+    i=0
+    user_p = request.args.get('user_p')
+    beer_p = request.args.get('beer_p')
+    try: key = request.args.get('key')
+    except NameError: key = 'e'
+    if key == 'abcd':
+            users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
+            if user_p not in users_df['user'].values or beer_p not in beer_dict.keys():
+                return_str =  "Unrecognized beer or user, have you added ratings and trained the model?"
+                return jsonify(result = return_str)
+            user_id = users_df.user_id[users_df.user == user_p].values[0]
+            beer_id = beer_dict[beer_p]
+            print user_p, beer_p, user_id, beer_id
+            path = os.getcwd()
+            model = MatrixFactorizationModel.load(sc, path)
+            pred = model.predict(user_id, beer_id)
+            return_str = "Prediction: %0.1f"%pred
+            return jsonify(result = return_str)
+
 
 if __name__ == '__main__':
     engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
-    users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
     cursor = engine.connect()
     q = cursor.execute('SELECT DISTINCT beer, beer_id FROM mt3beers')
     beer_dict = dict([(beer[0].encode('utf-8', "ignore"), int(beer[1])) for beer in q])
