@@ -1,4 +1,5 @@
 import os
+import tempfile
 import psycopg2
 import json
 import pandas as pd
@@ -12,7 +13,17 @@ from pyspark import SQLContext, HiveContext
 from pyspark.mllib.recommendation import MatrixFactorizationModel
 import beer_spark as modeling
 
-
+engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
+cursor = engine.connect()
+q = cursor.execute('SELECT DISTINCT beer, beer_id FROM mt3beers')
+beer_dict = dict([(beer[0].encode('utf-8', "ignore"), int(beer[1])) for beer in q])
+rev_beer_dict = dict([(v, k) for k,v in beer_dict.iteritems()])
+    #start spark
+os.environ["SPARK_HOME"] = "/home/ubuntu/spark-1.5.2-bin-hadoop2.6"
+conf = SparkConf().setAppName("BeerSleuthALS").set("spark.executor.memory", "4g")
+sc = SparkContext(conf=conf)
+sqlContext = SQLContext(sc)
+path = tempfile.mkdtemp() 
 
 
 
@@ -42,11 +53,11 @@ def ALS_fit():
     if key == 'abcd':
         ratings_sqldf = modeling.get_item_user_rev_from_pg(engine, sqlContext)
         sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
-        model = modeling.fit_final_model(ratings_sqldf)
-        path = os.getcwd()
-        shutil.rmtree('metadata', ignore_errors=True)
-        shutil.rmtree('data', ignore_errors=True)
+        print('fitting model')
+	model = modeling.fit_final_model(ratings_sqldf)
+	print('save model')
         model.save(sc, path)
+	print('done')
         return jsonify(result="Model training complete, you may now get predictions")
 
 
@@ -107,13 +118,16 @@ def prediction():
     except NameError: key = 'e'
     if key == 'abcd':
             users_df = pd.read_sql_query('''SELECT DISTINCT mt3ratings.user, user_id FROM mt3ratings WHERE appdata = 1''', engine)
-            if user_p not in users_df['user'].values or beer_p not in beer_dict.keys():
-                return_str =  "Unrecognized beer or user, have you added ratings and trained the model?"
+            if user_p not in users_df['user'].values:
+                return_str =  "can't find user"
                 return jsonify(result = return_str)
+   
+            if beer_p not in beer_dict.keys():
+		return_str = "can't find beer"
+		return jsonify(result = return_str)
             user_id = users_df.user_id[users_df.user == user_p].values[0]
             beer_id = beer_dict[beer_p]
             print user_p, beer_p, user_id, beer_id
-            path = os.getcwd()
             model = MatrixFactorizationModel.load(sc, path)
             pred = model.predict(user_id, beer_id)
             return_str = "Prediction: %0.1f"%pred
@@ -121,15 +135,4 @@ def prediction():
 
 
 if __name__ == '__main__':
-    engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
-    cursor = engine.connect()
-    q = cursor.execute('SELECT DISTINCT beer, beer_id FROM mt3beers')
-    beer_dict = dict([(beer[0].encode('utf-8', "ignore"), int(beer[1])) for beer in q])
-    rev_beer_dict = dict([(v, k) for k,v in beer_dict.iteritems()])
-    #start spark
-    conf = SparkConf() \
-      .setAppName("BeerSleuthALS") \
-      .set("spark.executor.memory", "4g")
-    sc = SparkContext(conf=conf)
-    sqlContext = SQLContext(sc)
-    app.run(host='0.0.0.0', port=8080, debug=True)
+   app.run(host='0.0.0.0',  debug=False)

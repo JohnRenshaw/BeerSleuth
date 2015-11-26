@@ -110,7 +110,7 @@ def add_rating_to_db(user, beer, beer_id, taste, engine,preds=0):
     ratings = Table('mt3ratings', metadata, autoload=True)
     if user not in users_df.user.values:
         num_users = pd.read_sql_query('''SELECT max(user_id) as users FROM mt3ratings''', engine)
-        user_id = num_users['users'].values[0]+1000000
+        user_id = num_users['users'].values[0]+1
     else: user_id = users_df.user_id[users_df.user == user].values[0]
     _id = beer + '_' + user
     i = ratings.insert()
