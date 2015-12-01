@@ -135,13 +135,14 @@ def add_pred_to_db(user_id, beer_id, pred, engine):
     i.execute( user_id=user_id, beer_id=beer_id, pred = pred )
 
 def calc_cos_sim(beer_sqldf):
-    return beer_sqldf.rdd.cartesian(beer_sqldf.rdd).map(lambda x: ((x[0][0],x[1][0]),distance.cosine(x[0][1:], x[1][1:]))).collect()
+    beer_sqldf.rdd.cartesian(beer_sqldf.rdd).map(lambda x: ((x[0][0],x[1][0]),distance.cosine(x[0][1:], x[1][1:]))).saveAsTextFile('cos_sim.txt')
+    return 
 
 if __name__ == '__main__':
     # set up environment
     conf = SparkConf() \
       .setAppName("BeerSleuthALS") \
-      .set("spark.executor.memory", "6g")
+      .set("spark.driver.memory", "8g")
     sc = SparkContext(conf=conf)
     sqlContext = SQLContext(sc)
 
