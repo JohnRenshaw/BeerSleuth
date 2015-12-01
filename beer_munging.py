@@ -44,10 +44,10 @@ def get_CA_item_user_pairs(beer_ratings):
     taste_df = taste_df[taste_df.taste != 'NA']
     taste_df.taste = taste_df.taste.astype(float)*10
     create_sql_tables(taste_df, 'caratings')
- 
+
 
 def get_beer_side_data(beer_ratings):
-    beer_side_data = pd.DataFrame(list(beer_ratings.find({},{"beer":1, "abv":1, "calories":1, 'brewery': 1, 'ratebeer_rating': 1, 'style': 1})))
+    beer_side_data = pd.DataFrame(list(beer_ratings.find({},{"beer":1, "abv":1, "calories":1, 'brewery': 1, 'ratebeer_rating': 1, 'style': 1, 'region': 1})))
     beer_side_data.pop('_id')
     beer_side_data.drop_duplicates(inplace=True)
     beer_side_data['beer_id'] = beer_side_data.index
@@ -89,5 +89,12 @@ def process_text(df):
 def calc_term_freq():
     with open('tokens.pkl','rb') as f:
         tokens = pickle.load(f)
-    vectorizer = TfidfVectorizer(max_features=100, ngram_range=(1, 2), analyzer = 'word', stop_words=['10', '12'], use_idf=False)
-    return vectorizer.fit_transform(tokens), vectorizer
+    with open('agged_text.pkl','rb') as f:
+            agged_text = pickle.load(f)
+    v = TfidfVectorizer(max_features=100, ngram_range=(1, 2), analyzer = 'word', stop_words=['10', '12'], use_idf=False)
+    tf = v.fit_transform(tokens)
+    tf = tf.todense()
+    text_df = pd.DataFrame(tf, index = agged_text.index, columns = v.vocabulary_)
+    text_df.pop('beer')
+    create_sql_tables(text_df, 'text_data')
+    return

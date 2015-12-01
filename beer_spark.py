@@ -7,11 +7,13 @@ from os.path import join, isfile, dirname
 from pyspark import SparkConf, SparkContext
 from pyspark import SQLContext, HiveContext
 from pyspark.mllib.recommendation import MatrixFactorizationModel, ALS
+from scipy.spatial import distance
 from pyspark.sql.types import *
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine, Table, MetaData
 import psycopg2
+from collections import Counter
 
 
 def parseRating(ratings_file):
@@ -27,7 +29,7 @@ def parseRating(ratings_file):
 
 def get_item_user_rev_from_pg(engine, sqlContext):
     taste_df = pd.read_sql_query('''
-        SELECT user_id, beer_id, taste FROM mt3ratings 
+        SELECT user_id, beer_id, taste FROM mt3ratings
          ''', engine)
     taste_df.taste = taste_df.taste.astype(int)
     return sqlContext.createDataFrame(taste_df)
@@ -84,6 +86,12 @@ def get_app_user_beer_id_pairs(engine):
     beer_df = pd.read_sql_query('''SELECT DISTINCT beer, beer_id FROM mt3beers''', engine)
     return users_df, beer_df
 
+def get_beer_data(engine):
+    beer_data = pd.read_sql_query('''SELECT beer_id, abv, calories, text_data.* FROM beers JOIN text_data ON beers.beer=text_data.beer''', engine)
+    beer_data.pop('beer')
+    beer_data_sqldf = sqlContext.createDataFrame(beer_data)
+    return beer_data_sqldf
+
 
 def get_latent_beers(model, engine):
     latents = pd.DataFrame(model.productFeatures().map(lambda row: [row[1][0], row[1][1], row[1][2], row[1][3], row[1][4], row[1][5]]).collect())
@@ -126,21 +134,22 @@ def add_pred_to_db(user_id, beer_id, pred, engine):
     i = preds.insert()
     i.execute( user_id=user_id, beer_id=beer_id, pred = pred )
 
-
-
-
+def calc_cos_sim(beer_sqldf):
+    beer_sqldf.rdd.cartesian(beer_sqldf.rdd).map(lambda x: ((x[0][0],x[1][0]),distance.cosine(x[0][1:], x[1][1:]))).saveAsTextFile('cos_sim.txt')
+    return 
 
 if __name__ == '__main__':
     # set up environment
     conf = SparkConf() \
       .setAppName("BeerSleuthALS") \
-      .set("spark.executor.memory", "4g")
+      .set("spark.driver.memory", "8g")
     sc = SparkContext(conf=conf)
-    sqlContext = SQLContext(sc) 
+    sqlContext = SQLContext(sc)
 
     #load data
     engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
     ratings_sqldf = get_item_user_rev_from_pg(engine, sqlContext)
+    beer_sqldf = get_beer_data(engine)
     sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
 #    train, test = sqlContext.table('ratings').randomSplit([.8, .2])
 #    train = train.cache()
@@ -150,10 +159,21 @@ if __name__ == '__main__':
 ##    model_param_sweep(train, test)
 #    import timeit
 #    start_time = timeit.default_timer()
-    model = fit_final_model(ratings_sqldf)
+#    model = fit_final_model(ratings_sqldf)
 #    elapsed = timeit.default_timer() - start_time
-'''
-initial CA ratings db had 627431 ratings
-CREATE TABLE beercounts AS (SELECT min(beer) beer ,min(beer_id) beer_id, count(*) FROM mt3ratings group by beer, beer_id);
 
-'''     
+
+
+
+
+'''
+sim_dict={}
+for i in beer_data.index:
+     sim_dict[i] = Counter()
+     for j in beer_data.index:
+         if i != j:
+             sim_dict[i][j] = distance.cosine(beer_data.ix[i], beer_data.ix[j])
+     print i
+
+     test.cartesian(test).map(lambda x: ((x[0][0],x[1][0]),distance.cosine(x[0][1:], x[1][1:]))).take(3)
+'''
