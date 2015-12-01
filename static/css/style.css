@@ -7,4 +7,17 @@
 .btn-primary2:hover{
   background-color: #18bc9c;
   border-color: #18bc9c;
-  }
+  color: #2c3e50 }
+.btn-primary2:target{
+  background-color: #18bc9c;
+  border-color: #18bc9c;
+  color: #2c3e50 }
+.btn-primary2:active{
+  background-color: #18bc9c;
+  border-color: #18bc9c;
+  color: #2c3e50 }
+.btn-primary2:focus{
+  background-color: #18bc9c;
+  border-color: #18bc9c;
+  color: #2c3e50 }
+

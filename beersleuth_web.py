@@ -12,6 +12,7 @@ from pyspark import SparkConf, SparkContext
 from pyspark import SQLContext, HiveContext
 from pyspark.mllib.recommendation import MatrixFactorizationModel
 import beer_spark as modeling
+global model 
 
 engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
 cursor = engine.connect()
@@ -54,7 +55,11 @@ def ALS_fit():
         ratings_sqldf = modeling.get_item_user_rev_from_pg(engine, sqlContext)
         sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
         print('fitting model')
+	shutil.rmtree(path +'/metadata', ignore_errors=True)
+        shutil.rmtree(path +'/data', ignore_errors=True)
 	model = modeling.fit_final_model(ratings_sqldf)
+	model.productFeatures().cache()
+	model.userFeatures().cache()
 	print('save model')
         model.save(sc, path)
 	print('done')
@@ -113,7 +118,7 @@ def add_rating():
 def prediction():
     i=0
     user_p = request.args.get('user_p')
-    beer_p = request.args.get('beer_p')
+    beer_p = request.args.get('beer_p').encode('utf-8')
     try: key = request.args.get('key')
     except NameError: key = 'e'
     if key == 'abcd':
@@ -129,8 +134,11 @@ def prediction():
             beer_id = beer_dict[beer_p]
             print user_p, beer_p, user_id, beer_id
             model = MatrixFactorizationModel.load(sc, path)
+            if model:
+	       print('loaded model')
             pred = model.predict(user_id, beer_id)
             return_str = "Prediction: %0.1f"%pred
+	    print(return_str)
             return jsonify(result = return_str)
 
 
