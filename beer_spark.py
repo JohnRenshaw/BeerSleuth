@@ -87,7 +87,13 @@ def get_app_user_beer_id_pairs(engine):
     return users_df, beer_df
 
 def get_beer_data(engine):
-    beer_data = pd.read_sql_query('''SELECT beer_id, abv, calories, text_data.* FROM beers JOIN text_data ON beers.beer=text_data.beer''', engine)
+    beer_data = pd.read_sql_query(
+    '''SELECT DISTINCT beer_id, abv, calories, text_data.*
+        FROM beers
+        JOIN text_data ON beers.beer=text_data.beer
+         WHERE beer_id in
+            (SELECT beer_id  FROM
+                (SELECT min(beer_id) as beer_id, COUNT(beer_id) as count FROM ratings GROUP BY beer_id) temp WHERE count>50)''', engine)
     beer_data.pop('beer')
     beer_data_sqldf = sqlContext.createDataFrame(beer_data)
     return beer_data_sqldf
@@ -135,8 +141,14 @@ def add_pred_to_db(user_id, beer_id, pred, engine):
     i.execute( user_id=user_id, beer_id=beer_id, pred = pred )
 
 def calc_cos_sim(beer_sqldf):
-    beer_sqldf.rdd.cartesian(beer_sqldf.rdd).map(lambda x: ((x[0][0],x[1][0]),distance.cosine(x[0][1:], x[1][1:]))).saveAsTextFile('cos_sim.txt')
-    return 
+     beer_sim = beer_sqldf.rdd.cartesian(beer_sqldf.rdd).map(lambda x: ((min(x[0][0],x[1][0]), max(x[0][0],x[1][0])),float('%0.4e'%distance.cosine(x[0][1:], x[1][1:])))).collect()
+     sim_df = pd.DataFrame(beer_sim)
+     sim_df['beer_id1'] = sim_df.apply(lambda x: x[0][0], axis = 1)
+     sim_df['beer_id2'] = sim_df.apply(lambda x: x[0][1], axis = 1)
+     sim_df.pop(0)
+     sim_df.columns = ['similarity', 'beer_id1', 'beer_id2']
+     sim_df.drop_duplicates()
+     return sim_df
 
 if __name__ == '__main__':
     # set up environment

@@ -66,6 +66,8 @@ def nlp(beer_ratings):
   #  text_revs = pd.DataFrame(list(beer_ratings.find({},{"beer":1, 'review': 1})))
   #  text_revs.pop('_id')
   #  agged_text = text_revs.groupby('beer').aggregate(sum)
+ #   with open('agged_text.pkl','wb') as f:
+#            pickle.dump(agged_text, f)
     with open('agged_text.pkl','rb') as f:
         agged_text = pickle.load(f)
     tokenized_text_list = process_text(agged_text)
