@@ -265,6 +265,7 @@
                     <div class = "col-xs-4">
                         <br>
                          <button name="get_pred" id="get_pred" type="submit" class="btn btn-primary2" value="Pred">Get Predicted Rating</button>
+                          <button name="top20" id="top20" type="submit" class="btn btn-primary2" value="Rec">Top 20 Recs</button>
                           <br>
                     </div>
                 </form>
@@ -284,8 +285,22 @@
                     });
                   });
                 </script>
+                <script type=text/javascript>
+                  $(function() {
+                    $('button#top20').bind('click', function() {
+                      $.getJSON('/top20', {
+                        user_p: $('input[name="user_n2"]').val(),
+                        key:'abcd'
+                      }, function(data) {
+                        $("#recs").html(data.result);
+                      });
+                      return false;
+                    });
+                  });
+                </script>
             </div>
                 <h3 name="prediction_val" id="prediction_val"></h3>
+                <div id="recs"></div>
         </div>
 
     </section>

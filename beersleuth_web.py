@@ -12,7 +12,6 @@ from pyspark import SparkConf, SparkContext
 from pyspark import SQLContext, HiveContext
 from pyspark.mllib.recommendation import MatrixFactorizationModel
 import beer_spark as modeling
-global model 
 
 engine = create_engine('postgresql://postgres:123@localhost:5432/beersleuth')
 cursor = engine.connect()
@@ -24,7 +23,7 @@ os.environ["SPARK_HOME"] = "/home/ubuntu/spark-1.5.2-bin-hadoop2.6"
 conf = SparkConf().setAppName("BeerSleuthALS").set("spark.executor.memory", "4g")
 sc = SparkContext(conf=conf)
 sqlContext = SQLContext(sc)
-path = tempfile.mkdtemp() 
+path = tempfile.mkdtemp()
 
 
 
@@ -55,11 +54,7 @@ def ALS_fit():
         ratings_sqldf = modeling.get_item_user_rev_from_pg(engine, sqlContext)
         sqlContext.registerDataFrameAsTable(ratings_sqldf, "ratings")
         print('fitting model')
-	shutil.rmtree(path +'/metadata', ignore_errors=True)
-        shutil.rmtree(path +'/data', ignore_errors=True)
 	model = modeling.fit_final_model(ratings_sqldf)
-	model.productFeatures().cache()
-	model.userFeatures().cache()
 	print('save model')
         model.save(sc, path)
 	print('done')
@@ -126,7 +121,7 @@ def prediction():
             if user_p not in users_df['user'].values:
                 return_str =  "can't find user"
                 return jsonify(result = return_str)
-   
+
             if beer_p not in beer_dict.keys():
 		return_str = "can't find beer"
 		return jsonify(result = return_str)
@@ -134,12 +129,21 @@ def prediction():
             beer_id = beer_dict[beer_p]
             print user_p, beer_p, user_id, beer_id
             model = MatrixFactorizationModel.load(sc, path)
-            if model:
-	       print('loaded model')
             pred = model.predict(user_id, beer_id)
             return_str = "Prediction: %0.1f"%pred
-	    print(return_str)
             return jsonify(result = return_str)
+
+@app.route('/top20')
+def prediction():
+    i=0
+    user_p = request.args.get('user_p')
+    try: key = request.args.get('key')
+    except NameError: key = 'e'
+    if key == 'abcd':
+        user_id = users_df.user_id[users_df.user == user_p].values[0]
+        model = MatrixFactorizationModel.load(sc, path)
+        pred_df = pd.DataFrame(model.recommendProducts(user_id, 20), columns = ['user', 'beer_id', 'rating'])
+        return  jsonify(result = pred_df.to_html(index=False, col_space = "50%", classes = "table-hover"))
 
 
 if __name__ == '__main__':
