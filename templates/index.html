@@ -228,6 +228,7 @@
                           $("#status_label").text("Teaching computers to like beer, this could take up to 30 seconds to complete, this status will change when done");
                           $("#status_label").show();
                           $.getJSON('fitting', {
+                            usern: $('input[name="usern"]').val(),
                             key:'abcd'
                           }, function(data) {
                             $("#status_label").text(data.result);
