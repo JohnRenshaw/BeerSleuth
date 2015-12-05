@@ -21,9 +21,9 @@ cursor = engine.connect()
 q = cursor.execute('SELECT DISTINCT beer, beer_id FROM mt3beers')
 beer_dict = dict([(beer[0].encode('utf-8', "ignore"), int(beer[1])) for beer in q])
 rev_beer_dict = dict([(v, k) for k,v in beer_dict.iteritems()])
-
-
-
+pred_path = '/home/ubuntu/BeerSleuth/preds/'
+with open('%sbeers_w_ten_revs.pkl'%pred_path,'rb') as f:
+          beer_filt =  pickle.load(f)
 
 
 app = Flask(__name__)
@@ -42,7 +42,7 @@ def get_ratings():
     if key == 'abcd':
         query = "SELECT beer, taste FROM mt3ratings WHERE mt3ratings.user = '%s'" %usern
         user_ratings = pd.read_sql_query(query, engine)
-        return  jsonify(result = user_ratings.to_html(index=False, col_space = "50%", classes = "table-hover"))
+        return  jsonify(result = user_ratings.to_html(index=False, col_space = "50%"))
 
 
 @app.route('/fitting')
@@ -72,7 +72,7 @@ def ALS_fit():
         user_preds = model.predictAll(sc.parallelize(to_predict)).collect()
         print('got preds')
         preds = Counter({x[1]: x[2] for x in user_preds})
-        with open('%s_preds.pkl'%user_id,'wb') as f:
+        with open('%s%s_preds.pkl'%(pred_path, user_id),'wb') as f:
             pickle.dump(preds, f)
         print('done')
         sc.stop()
@@ -145,7 +145,7 @@ def prediction():
         		return jsonify(result = return_str)
             user_id = users_df.user_id[users_df.user == user_p].values[0]
             beer_id = beer_dict[beer_p]
-            with open('%s_preds.pkl'%user_id,'rb') as f:
+            with open('%s%s_preds.pkl'%(pred_path, user_id),'rb') as f:
                 preds = pickle.load(f)
             return_str = "Prediction: %0.1f"%preds[beer_id]
             return jsonify(result = return_str)
@@ -162,12 +162,13 @@ def top20():
     except NameError: key = 'e'
     if key == 'abcd':
         user_id = users_df.user_id[users_df.user == user_p].values[0]
-        with open('%s_preds.pkl'%user_id,'rb') as f:
+        with open('%s%s_preds.pkl'%(pred_path, user_id),'rb') as f:
             preds = pickle.load(f)
         rank = range(1,21)
         beers = [rev_beer_dict[k[0]] for k in preds.most_common(20)]
+#	beers = filter(lambda x: x[0] in beer_filt, beers)[:20]
         pred_df = pd.DataFrame({'rank':rank,'beer':beers})
-        return  jsonify(result = pred_df.to_html(index=False, col_space = "50%", classes = "table-hover"))
+        return  jsonify(result = pred_df.to_html(index=False, col_space = "50%"))
 
 
 if __name__ == '__main__':
