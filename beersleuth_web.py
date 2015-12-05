@@ -22,8 +22,9 @@ q = cursor.execute('SELECT DISTINCT beer, beer_id FROM mt3beers')
 beer_dict = dict([(beer[0].encode('utf-8', "ignore"), int(beer[1])) for beer in q])
 rev_beer_dict = dict([(v, k) for k,v in beer_dict.iteritems()])
 pred_path = '/home/ubuntu/BeerSleuth/preds/'
-with open('%sbeers_w_ten_revs.pkl'%pred_path,'rb') as f:
-          beer_filt =  pickle.load(f)
+#pred_path = '/home/john/BeerSleuth/preds/'
+with open('%smt10_beers.pkl'%pred_path,'rb') as f:
+          beer_id_filt =  pickle.load(f)
 
 
 app = Flask(__name__)
@@ -165,8 +166,12 @@ def top20():
         with open('%s%s_preds.pkl'%(pred_path, user_id),'rb') as f:
             preds = pickle.load(f)
         rank = range(1,21)
+#        beer_id_filt = [beer_dict[beer.encode('utf-8')] for beer in beer_filt]
+#        with open('/home/john/BeerSleuth/preds/mt10_beers.pkl','wb') as f:
+#               pickle.dump(beer_id_filt, f)
+        preds = Counter({k: v for k,v in preds.iteritems() if k in beer_id_filt })
         beers = [rev_beer_dict[k[0]] for k in preds.most_common(20)]
-#	beers = filter(lambda x: x[0] in beer_filt, beers)[:20]
+#    	beers = filter(lambda x: x.encode('utf-8') in beer_filt, beers)[:20]
         pred_df = pd.DataFrame({'rank':rank,'beer':beers})
         return  jsonify(result = pred_df.to_html(index=False, col_space = "50%"))
 
