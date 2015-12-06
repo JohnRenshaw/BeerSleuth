@@ -70,11 +70,17 @@ def ALS_fit():
     	model = modeling.fit_final_model(ratings_sqldf)
         beer_ids = beer_dict.values()
         to_predict = zip([user_id]*len(beer_ids), beer_ids)
+	to_predict_top20 = zip([user_id]*len(beer_id_filt), beer_id_filt)
         user_preds = model.predictAll(sc.parallelize(to_predict)).collect()
+	user_preds_top20 = model.predictAll(sc.parallelize(to_predict_top20)).collect()
         print('got preds')
         preds = Counter({x[1]: x[2] for x in user_preds})
+	preds_top20 = Counter({x[1]: x[2] for x in user_preds_top20})
         with open('%s%s_preds.pkl'%(pred_path, user_id),'wb') as f:
             pickle.dump(preds, f)
+        with open('%s%s_preds_top20.pkl'%(pred_path, user_id),'wb') as f:
+            pickle.dump(preds_top20, f)
+
         print('done')
         sc.stop()
         return jsonify(result="Model training complete, you may now get predictions")
@@ -163,15 +169,14 @@ def top20():
     except NameError: key = 'e'
     if key == 'abcd':
         user_id = users_df.user_id[users_df.user == user_p].values[0]
-        with open('%s%s_preds.pkl'%(pred_path, user_id),'rb') as f:
+        with open('%s%s_preds_top20.pkl'%(pred_path, user_id),'rb') as f:
             preds = pickle.load(f)
         rank = range(1,21)
 #        beer_id_filt = [beer_dict[beer.encode('utf-8')] for beer in beer_filt]
-#        with open('/home/john/BeerSleuth/preds/mt10_beers.pkl','wb') as f:
+#        with open('%smt10_beers.pkl'%pred_path,'wb') as f:
 #               pickle.dump(beer_id_filt, f)
-        preds = Counter({k: v for k,v in preds.iteritems() if k in beer_id_filt })
+#        preds = Counter({k: v for k,v in preds.iteritems() if k in beer_id_filt })
         beers = [rev_beer_dict[k[0]] for k in preds.most_common(20)]
-#    	beers = filter(lambda x: x.encode('utf-8') in beer_filt, beers)[:20]
         pred_df = pd.DataFrame({'rank':rank,'beer':beers})
         return  jsonify(result = pred_df.to_html(index=False, col_space = "50%"))
 
